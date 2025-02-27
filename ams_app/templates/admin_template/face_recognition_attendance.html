@@ -1,0 +1,68 @@
+{% extends 'admin_template/base_template.html' %}
+
+{% block page_title %}
+Face Recognition Attendance
+{% endblock page_title %}
+
+{% block main_content %}
+<div class="container">
+    <h2>Face Recognition Attendance</h2>
+    <video id="video" width="640" height="480" autoplay></video>
+    <canvas id="canvas" width="640" height="480" hidden></canvas>
+    <p id="result" class="mt-3"></p>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const result = document.getElementById('result');
+
+    // Access the camera
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => video.srcObject = stream)
+        .catch(err => {
+            console.error("Error accessing camera:", err);
+            result.innerText = "⚠️ Please allow camera permissions.";
+        });
+
+    // Capture and check attendance every 5 seconds
+    video.addEventListener("play", () => {
+        console.log("📡 Camera opened, starting face detection...");
+        setInterval(() => {
+            captureAndCheckAttendance();
+        }, 5000);
+    });
+
+    function captureAndCheckAttendance() {
+        const context = canvas.getContext("2d");
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(blob => {
+            const formData = new FormData();
+            formData.append("image", blob);
+            formData.append("subject_id", "1"); // Replace with actual subject ID
+
+            console.log("📡 Sending POST request to /mark_attendance_live/");
+
+            fetch("/mark_attendance_live/", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("🔍 Server response:", data);
+
+                // ✅ Display result in HTML
+                if (data.message) {
+                    result.innerText = `✅ ${data.message}`;
+                } else if (data.error) {
+                    result.innerText = `❌ ${data.error}`;
+                } else {
+                    result.innerText = "⚠️ Unexpected response received.";
+                }
+            })
+            .catch(error => console.error("❌ Fetch error:", error));
+        }, "image/png");
+    }
+</script>
+{% endblock main_content %}

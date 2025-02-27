@@ -1,0 +1,105 @@
+{% extends 'admin_template/base_template.html' %}
+{% block page_title %}
+Enroll Student
+{% endblock page_title %}
+{% block main_content %}
+    <section class="content">
+      <div class="container-fluid">
+          <div class="row">
+              <div class="col-md-12">
+            <div class="card card-primary">
+              <div class="card-header">
+                <h3 class="card-title">Enroll Student</h3>
+              </div>
+              <form role="form" action="/add_student_save" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="card-body">
+                  {{ form.as_p }}
+                  
+                <!-- Multiple Course Selection (Checkbox) -->
+                <div class="form-group">
+                  <label>Select Courses</label>
+                  <div id="course-checkboxes">
+                      {% for course in form.fields.course.choices %}
+                          <div class="form-check">
+                              <input class="form-check-input course-checkbox" type="checkbox" name="courses" value="{{ course.0 }}" id="course{{ course.0 }}">
+                              <label class="form-check-label" for="course{{ course.0 }}">
+                                  {{ course.1 }}
+                              </label>
+                          </div>
+                      {% endfor %}
+                  </div>
+                </div>
+
+                <!-- Subject Selection (Dynamic) -->
+                <div class="form-group">
+                  <label>Select Subjects</label>
+                  <div id="subject-checkboxes">
+                      <p>Select a course to load subjects.</p>
+                  </div>
+                </div>
+                  <div class="form-group">
+                    {% if messages %}
+                      {% for message in messages %}
+                      {% if message.tags == 'error' %}
+                      <div class="alert alert-danger" style="margin-top:10px">{{ message }}</div>
+                      {% endif %}
+                      {% if message.tags == 'success' %}
+                      <div class="alert alert-success" style="margin-top:10px">{{ message }}</div>
+                      {% endif %}
+                      {% endfor %}
+                    {% endif %}
+                  </div>
+                </div>
+              
+                <div class="card-footer">
+                  <button type="submit" class="btn btn-primary btn-block">Enroll Student</button>
+                </div>
+              </form>
+            </div>
+          </div>
+      </div>
+    </section>
+
+<!-- JavaScript for AJAX -->
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+      let courseCheckboxes = document.querySelectorAll(".course-checkbox");
+      let subjectContainer = document.getElementById("subject-checkboxes");
+  
+      courseCheckboxes.forEach(checkbox => {
+          checkbox.addEventListener("change", function () {
+              let selectedCourses = Array.from(document.querySelectorAll(".course-checkbox:checked"))
+                                         .map(cb => cb.value);
+              
+              subjectContainer.innerHTML = ""; // Clear previous subjects
+  
+              if (selectedCourses.length > 0) {
+                  fetch(`/get_subjects_by_course/?courses=${selectedCourses.join(",")}`)
+                      .then(response => response.json())
+                      .then(data => {
+                          if (data.subjects.length > 0) {
+                              data.subjects.forEach(subject => {
+                                  let checkbox = `
+                                      <div class="form-check">
+                                          <input class="form-check-input" type="checkbox" name="subjects" value="${subject.id}" id="subject${subject.id}">
+                                          <label class="form-check-label" for="subject${subject.id}">
+                                              ${subject.subject_name}
+                                          </label>
+                                      </div>
+                                  `;
+                                  subjectContainer.innerHTML += checkbox;
+                              });
+                          } else {
+                              subjectContainer.innerHTML = "<p>No subjects available for the selected courses.</p>";
+                          }
+                      })
+                      .catch(error => console.error("Error fetching subjects:", error));
+              } else {
+                  subjectContainer.innerHTML = "<p>Select a course to load subjects.</p>";
+              }
+          });
+      });
+  });
+  </script>
+{% endblock main_content %}

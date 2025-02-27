@@ -1,0 +1,122 @@
+{% extends 'admin_template/base_template.html' %}
+{% block page_title %}
+Add Subject
+{% endblock page_title %}
+{% block main_content %}
+    <!-- Main content -->
+    <section class="content">
+      <div class="container-fluid">
+          <div class="row">
+              <div class="col-md-12">
+            <!-- general form elements -->
+            <div class="card card-primary">
+              <div class="card-header">
+                <h3 class="card-title">Add Subject</h3>
+              </div>
+              <!-- /.card-header -->
+              <!-- form start -->
+              <form role="form" action="/add_subject_save" method="post">
+                  {% csrf_token %}
+                <div class="card-body">
+                  
+                  <div class="form-group">
+                    <label>Subject Code</label>
+                    <input type="text" class="form-control" name="subject_code" placeholder="Enter Subject Code" required>
+                  </div>
+
+                  <div class="form-group">
+                    <label>Subject Name</label>
+                    <input type="text" class="form-control" name="subject_name" placeholder="Enter Subject Name" required>
+                  </div>
+
+                  <div class="form-group">
+                    <label>Course</label>
+                    <select class="form-control" name="course">
+                        {% for course in courses %}
+                        <option value="{{course.id}}">{{course.course_name}}</option>
+                        {% endfor %}
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label>Staff</label>
+                    <select class="form-control" name="staff">
+                      {% for staff in staffs %}
+                      <option value="{{staff.id}}">{{staff.admin.first_name}} {{staff.admin.last_name}}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label>Schedules</label>
+                    <div id="schedule-container">
+                      <div class="schedule-entry">
+                        <select class="form-control" name="day_of_week[]">
+                          <option value="Monday">Monday</option>
+                          <option value="Tuesday">Tuesday</option>
+                          <option value="Wednesday">Wednesday</option>
+                          <option value="Thursday">Thursday</option>
+                          <option value="Friday">Friday</option>
+                          <option value="Saturday">Saturday</option>
+                          <option value="Sunday">Sunday</option>
+                        </select>
+                        <input type="time" class="form-control" name="start_time[]" required>
+                        <input type="time" class="form-control" name="end_time[]" required>
+                        <button type="button" class="btn btn-danger remove-schedule">Remove</button>
+                      </div>
+                    </div>
+                    <button type="button" class="btn btn-success" id="add-schedule">Add Schedule</button>
+                  </div>
+
+                  <div class="form-group">
+                    {% if messages %}
+                      {% for message in messages %}
+                      <div class="alert alert-{{ message.tags }}" style="margin-top:10px">{{ message }}</div>
+                      {% endfor %}
+                    {% endif %}
+                  </div>
+
+                </div>
+                <!-- /.card-body -->
+
+                <div class="card-footer">
+                  <button type="submit" class="btn btn-primary btn-block">Add Subject</button>
+                </div>
+              </form>
+            </div>
+            <!-- /.card -->
+          </div>
+          </div>
+      </div>
+    </section>
+    <!-- /.content -->
+
+    <script>
+      document.getElementById('add-schedule').addEventListener('click', function() {
+        let scheduleContainer = document.getElementById('schedule-container');
+        let newEntry = document.createElement('div');
+        newEntry.classList.add('schedule-entry');
+        newEntry.innerHTML = `
+          <select class="form-control" name="day_of_week[]">
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+            <option value="Sunday">Sunday</option>
+          </select>
+          <input type="time" class="form-control" name="start_time[]" required>
+          <input type="time" class="form-control" name="end_time[]" required>
+          <button type="button" class="btn btn-danger remove-schedule">Remove</button>
+        `;
+        scheduleContainer.appendChild(newEntry);
+      });
+
+      document.addEventListener('click', function(event) {
+        if (event.target.classList.contains('remove-schedule')) {
+          event.target.parentElement.remove();
+        }
+      });
+    </script>
+{% endblock main_content %}
