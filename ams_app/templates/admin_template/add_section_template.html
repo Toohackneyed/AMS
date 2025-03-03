@@ -1,53 +1,40 @@
 {% extends 'admin_template/base_template.html' %}
+
 {% block page_title %}
-Add Section
 {% endblock page_title %}
+
 {% block main_content %}
-    <!-- Main content -->
-    <section class="content">
-      <div class="container-fluid">
-          <div class="row">
-              <div class="col-md-12">
-            <!-- general form elements -->
-            <div class="card card-primary">
-              <div class="card-header">
-                <h3 class="card-title">Add Course</h3>
-              </div>
-              <!-- /.card-header -->
-              <!-- form start -->
-              <form role="form" action="/add_section_save" method="post">
-                  {% csrf_token %}
-                <div class="card-body">
-                  <div class="form-group">
-                    <label>Section</label>
-                    <input type="text" class="form-control" name="section" placeholder="Enter Section" required>
-                  </div>
-                      <div class="form-group">
-                      {% if messages %}
-                        {% for message in messages %}
-                        {% if message.tags == 'error' %}
-                        <div class="alert alert-danger" style="margin-top:10px">{{ message }}</div>
-                        {% endif %}
-                        {% if message.tags == 'success' %}
-                        <div class="alert alert-success" style="margin-top:10px">{{ message }}</div>
-                        {% endif %}
-                        {% endfor %}
-                      {% endif %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow-lg border-0 rounded">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="card-title">Add Section</h3>
                     </div>
+                    <form role="form" action="/add_section_save" method="post">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label class="font-weight-bold">Section Name</label>
+                                <input type="text" class="form-control" name="section" placeholder="Enter Section" required>
+                            </div>
 
-                </div>
-                <!-- /.card-body -->
+                            <!-- Flash Messages -->
+                            {% if messages %}
+                                {% for message in messages %}
+                                    <div class="alert alert-{{ message.tags }} mt-2">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
 
-                <div class="card-footer">
-                  <button type="submit" class="btn btn-primary btn-block">Add Section</button>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-primary btn-block">Add Section</button>
+                        </div>
+                    </form>
                 </div>
-              </form>
             </div>
-            <!-- /.card -->
-          </div>
-          </div>
-      </div>
-    </section>
-    <!-- /.content -->
+        </div>
+    </div>
+</section>
 {% endblock main_content %}
-

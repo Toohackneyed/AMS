@@ -1,103 +1,107 @@
 {% extends 'admin_template/base_template.html' %}
+
 {% block page_title %}
 Manage Session Year
 {% endblock page_title %}
+
 {% block main_content %}
-    <!-- Main content -->
-    <section class="content">
-      <div class="container-fluid">
-        
-        <div class="row">
-          <!-- ADD SESSION YEAR FORM -->
-          <div class="col-md-4">
-            <div class="card card-primary">
-              <div class="card-header">
-                <h3 class="card-title">Add Session Year</h3>
-              </div>
-              <!-- /.card-header -->
-              <form role="form" action="/add_session_save" method="post">
-                {% csrf_token %}
-                <div class="card-body">
-                  <div class="form-group">
-                    <label>Session Start Year</label>
-                    <input type="date" class="form-control" name="session_start_date" 
-                           value="{{ latest_session.session_start_date|date:'Y-m-d' }}" required>
-                  </div>
+<section class="content">
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <!-- ADD SESSION YEAR FORM -->
+            <div class="col-lg-4">
+                <div class="card shadow-lg border-0 rounded">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="card-title">Add Session Year</h3>
+                    </div>
 
-                  <div class="form-group">
-                    <label>Session End Year</label>
-                    <input type="date" class="form-control" name="session_end_date" 
-                           value="{{ latest_session.session_end_date|date:'Y-m-d' }}" required>
-                  </div>
+                    <form role="form" action="/add_session_save" method="post">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Session Start Year</label>
+                                <input type="date" class="form-control" name="session_start_date" required
+                                       value="{{ latest_session.session_start_date|date:'Y-m-d' }}">
+                            </div>
 
-                  <!-- SUCCESS & ERROR MESSAGES -->
-                  {% if messages %}
-                    {% for message in messages %}
-                      {% if message.tags == 'error' %}
-                        <div class="alert alert-danger" style="margin-top:10px">{{ message }}</div>
-                      {% endif %}
-                      {% if message.tags == 'success' %}
-                        <div class="alert alert-success" style="margin-top:10px">{{ message }}</div>
-                      {% endif %}
-                    {% endfor %}
-                  {% endif %}
+                            <div class="form-group">
+                                <label>Session End Year</label>
+                                <input type="date" class="form-control" name="session_end_date" required
+                                       value="{{ latest_session.session_end_date|date:'Y-m-d' }}">
+                            </div>
 
+                            <!-- SUCCESS & ERROR MESSAGES -->
+                            {% if messages %}
+                            <div class="mt-2">
+                                {% for message in messages %}
+                                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-primary btn-block">Save Session Year</button>
+                        </div>
+                    </form>
                 </div>
-                <!-- /.card-body -->
+            </div>
 
-                <div class="card-footer">
-                  <button type="submit" class="btn btn-primary btn-block">Save Session Year</button>
+            <!-- SESSION YEAR LIST -->
+            <div class="col-lg-8">
+                <div class="card shadow-lg border-0 rounded">
+                    <div class="card-header bg-dark text-white">
+                        <h3 class="card-title">Session Year Details</h3>
+                    </div>
+
+                    <div class="card-body table-responsive p-0">
+                        <table class="table table-hover text-nowrap">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Session Start</th>
+                                    <th>Session End</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for session in sessions %}
+                                <tr>
+                                    <td>{{ session.id }}</td>
+                                    <td>{{ session.session_start_date }}</td>
+                                    <td>{{ session.session_end_date }}</td>
+                                    <td>
+                                        <a href="/edit_session/{{ session.id }}" class="btn btn-success btn-sm">Edit</a>
+                                        <a href="{% url 'delete_session' session.id %}" class="btn btn-danger btn-sm delete-session"
+                                           data-id="{{ session.id }}">Delete</a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">No session years available.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-              </form>
             </div>
-          </div>
-
-          <!-- SESSION YEAR LIST -->
-          <div class="col-md-8">
-            <div class="card">
-              <div class="card-header">
-                <h3 class="card-title">Session Year Details</h3>
-              </div>
-              <!-- /.card-header -->
-              <div class="card-body table-responsive p-0">
-                <table class="table table-hover text-nowrap">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Session Start</th>
-                      <th>Session End</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                  {% for session in sessions %}
-                    <tr>
-                      <td>{{ session.id }}</td>
-                      <td>{{ session.session_start_date }}</td>
-                      <td>{{ session.session_end_date }}</td>
-                      <td>
-                        <a href="/edit_session/{{ session.id }}" class="btn btn-success btn-sm">Edit</a>
-                        <a href="{% url 'delete_session' session.id %}" class="btn btn-danger btn-sm" onclick="return confirmDelete();">Delete</a>
-                      </td>
-                    </tr>
-                  {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-              <!-- /.card-body -->
-            </div>
-          </div>
         </div>
+    </div>
+</section>
 
-      </div>
-    </section>
-    <!-- /.content -->
-
-    <!-- JavaScript for Delete Confirmation -->
-    <script>
-      function confirmDelete() {
-          return confirm("Are you sure you want to delete this session year? This action cannot be undone.");
-      }
-    </script>
+<!-- JavaScript for Delete Confirmation -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.delete-session').forEach(button => {
+            button.addEventListener('click', function(event) {
+                let confirmDelete = confirm("Are you sure you want to delete this session year? This action cannot be undone.");
+                if (!confirmDelete) {
+                    event.preventDefault();
+                }
+            });
+        });
+    });
+</script>
 
 {% endblock main_content %}

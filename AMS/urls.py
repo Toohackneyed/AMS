@@ -67,8 +67,13 @@ urlpatterns = [
     path('delete_subject/<int:subject_id>/', adminviews.delete_subject, name='delete_subject'),
     path('delete_student/<int:student_id>/', adminviews.delete_student, name='delete_student'),
     path("face_recognition_attendance/", adminviews.face_recognition_attendance, name="face_recognition_attendance"),
-    path("mark_attendance_live/", adminviews.mark_attendance_live, name="mark_attendance_live"),
+    path("auto_mark_attendance_live/", adminviews.auto_mark_attendance_live, name="auto_mark_attendance_live"),
     path("get_subjects_by_course/", adminviews.get_subjects_by_course, name="get_subjects_by_course"),
+    path("get_sections_by_session_year/", adminviews.get_sections_by_session_year, name="get_sections_by_session_year"),
+    path("download_attendance/", adminviews.download_attendance, name="download_attendance"),
+    path("get_ongoing_subject/", adminviews.get_ongoing_subject, name="get_ongoing_subject"),
+    path("recognize_student/", adminviews.recognize_student, name="recognize_student"),
+
 
 
                   #     Staff URL Path

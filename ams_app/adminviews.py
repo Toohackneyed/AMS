@@ -1,6 +1,7 @@
 
 from datetime import date
 import cv2
+import pandas as pd
 import face_recognition
 import numpy as np
 from django.http import JsonResponse
@@ -15,7 +16,9 @@ from django.db import IntegrityError
 from django.core.files.storage import FileSystemStorage
 from ams_app.forms import AddStudentForm , EditStudentForm
 import logging
+from django.core.files.base import ContentFile
 import json
+from django.utils.timezone import now, localtime, make_aware
 import base64
 import io
 from django.db import transaction
@@ -485,17 +488,34 @@ def edit_subject_save(request):
             subject.staff = staff
             subject.save()
 
-            # Update or Create Subject Schedules
+            # Get existing schedules
+            existing_schedule_ids = set(subject.schedules.values_list('id', flat=True))
+            submitted_schedule_ids = set(map(int, schedule_ids)) if schedule_ids else set()
+
+            # Delete schedules that are removed
+            schedules_to_delete = existing_schedule_ids - submitted_schedule_ids
+            SubjectSchedule.objects.filter(id__in=schedules_to_delete).delete()
+
+            # Update or Create schedules
             for i in range(len(days)):
                 if start_times[i] >= end_times[i]:
                     raise ValidationError("Start time must be before end time.")
 
-                if i < len(schedule_ids):  
-                    schedule = SubjectSchedule.objects.get(id=schedule_ids[i])
-                    schedule.day_of_week = days[i]
-                    schedule.start_time = start_times[i]
-                    schedule.end_time = end_times[i]
-                    schedule.save()
+                if i < len(schedule_ids) and schedule_ids[i]:
+                    schedule, created = SubjectSchedule.objects.get_or_create(
+                        id=schedule_ids[i],
+                        defaults={
+                            "subject": subject,
+                            "day_of_week": days[i],
+                            "start_time": start_times[i],
+                            "end_time": end_times[i],
+                        }
+                    )
+                    if not created:
+                        schedule.day_of_week = days[i]
+                        schedule.start_time = start_times[i]
+                        schedule.end_time = end_times[i]
+                        schedule.save()
                 else:
                     SubjectSchedule.objects.create(
                         subject=subject,
@@ -510,6 +530,7 @@ def edit_subject_save(request):
         except Exception as e:
             messages.error(request, f"Error: {str(e)}")
             return redirect("edit_subject", subject_id=subject_id)
+
 
 def edit_course(request, course_id):
     course = Courses.objects.get(id=course_id)
@@ -588,15 +609,29 @@ def admin_view_attendance(request):
     subjects = Subjects.objects.all()
     schedules = SubjectSchedule.objects.all()
     session_years = SessionYearModel.objects.all()
+    sections = Sections.objects.all()  # Kunin ang lahat ng sections
 
     context = {
         'subjects': subjects,
         'schedules': schedules,
-        'session_years': session_years
+        'session_years': session_years,
+        'sections': sections  # Ipadala sa template
     }
     
     return render(request, "admin_template/admin_view_attendance.html", context)
 
+@csrf_exempt
+def get_sections_by_session_year(request):
+    """ Fetch sections based on selected session year """
+    if request.method == 'POST':
+        session_year_id = request.POST.get('session_year')
+
+        sections = Sections.objects.filter(session_year_id=session_year_id)
+
+        section_data = [{"id": section.id, "name": section.section_name} for section in sections]
+        return JsonResponse(section_data, safe=False)
+
+    return JsonResponse({'error': 'Invalid request'}, status=400)
 
 @csrf_exempt
 def get_attendance(request):
@@ -605,22 +640,22 @@ def get_attendance(request):
         subject_id = request.POST.get('subject')
         session_year_id = request.POST.get('session_year')
         schedule_id = request.POST.get('schedule')
+        section_id = request.POST.get('section')  # Kunin ang section
         start_date = request.POST.get('start_date')
         end_date = request.POST.get('end_date')
 
-        # Convert string dates to Python date format
         start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
         end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
 
-        # Get attendance records
+        # I-filter ang attendance gamit ang section
         attendance_records = Attendance.objects.filter(
             subject_id=subject_id,
             session_year_id=session_year_id,
             schedule_id=schedule_id,
+            students__section_id=section_id,  # Isama ang filter sa section
             attendance_date__range=(start_date, end_date)
         )
 
-        # Prepare JSON response
         attendance_data = []
         for attendance in attendance_records:
             reports = AttendanceReport.objects.filter(attendance=attendance)
@@ -632,7 +667,54 @@ def get_attendance(request):
                 })
 
         return JsonResponse(attendance_data, safe=False)
+
     return JsonResponse({'error': 'Invalid request'}, status=400)
+
+def download_attendance(request):
+    """ Export attendance records as Excel file """
+    
+    subject_id = request.GET.get("subject")
+    session_year_id = request.GET.get("session_year")
+    schedule_id = request.GET.get("schedule")
+    section_id = request.GET.get("section")
+    start_date = request.GET.get("start_date")
+    end_date = request.GET.get("end_date")
+
+    start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+    end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+    # Kunin ang attendance records
+    attendance_records = Attendance.objects.filter(
+        subject_id=subject_id,
+        session_year_id=session_year_id,
+        schedule_id=schedule_id,
+        students__section_id=section_id,
+        attendance_date__range=(start_date, end_date)
+    )
+
+    # I-prepare ang data
+    data = []
+    for attendance in attendance_records:
+        reports = AttendanceReport.objects.filter(attendance=attendance)
+        for report in reports:
+            data.append([
+                report.student.admin.get_full_name(),
+                report.student.id_number,
+                attendance.attendance_date.strftime("%Y-%m-%d"),
+                report.status
+            ])
+
+    # Gawing DataFrame
+    df = pd.DataFrame(data, columns=["Student Name", "ID Number", "Date", "Status"])
+
+    # Gumawa ng Excel file
+    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = "attachment; filename=attendance.xlsx"
+    
+    with pd.ExcelWriter(response, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="Attendance", index=False)
+
+    return response
 
 def admin_profile(request):
     user=CustomUser.objects.get(id=request.user.id)
@@ -769,72 +851,87 @@ def mark_attendance(request):
 
     return JsonResponse({"error": "Invalid request"}, status=400)
 
+def get_ongoing_subject(request):
+    current_time = now().time()  # Diretso na, hindi na kailangang `localtime(now())`
+    today = now().strftime("%A")  # Kunin ang araw ngayon (Monday, Tuesday, etc.)
+
+    # Hanapin ang kasalukuyang subject na naka-schedule ngayon
+    ongoing_subjects = SubjectSchedule.objects.filter(
+        day_of_week=today,
+        start_time__lte=current_time,
+        end_time__gte=current_time
+    )
+
+    if ongoing_subjects.exists():
+        data = [
+            {"subject_name": sub.subject.subject_name, "start_time": str(sub.start_time), "end_time": str(sub.end_time)}
+            for sub in ongoing_subjects
+        ]
+        return JsonResponse({"ongoing_classes": data})
+    
+    return JsonResponse({"error": "No ongoing class at the moment."}, status=404)
+
+def recognize_student(image):
+    """Subukang i-recognize ang student gamit ang facial recognition."""
+    image_data = image.read()
+    uploaded_image = face_recognition.load_image_file(ContentFile(image_data))
+    uploaded_encodings = face_recognition.face_encodings(uploaded_image)
+    
+    if not uploaded_encodings:
+        return None  # Walang mukha na nakita
+
+    uploaded_encoding = uploaded_encodings[0]
+
+    students = Students.objects.all()
+    for student in students:
+        if student.face_encoding:  # Siguraduhin na may stored encoding
+            known_encoding = student.face_encoding
+            match = face_recognition.compare_faces([known_encoding], uploaded_encoding)
+            if match[0]:  # Kung may match
+                return student
+
+    return None  # Walang match
 
 @csrf_exempt
-def mark_attendance_live(request):
+def auto_mark_attendance_live(request):
     if request.method == "POST":
+        subject_id = request.POST.get("subject_id")
+        if not subject_id or subject_id == "undefined":
+            return JsonResponse({"error": "Invalid subject ID"}, status=400)
+
         try:
-            file = request.FILES.get("image")
-            subject_id = request.POST.get("subject_id")
+            subject_id = int(subject_id)  # Convert to integer
+            subject = SubjectSchedule.objects.get(id=subject_id)
+        except (ValueError, SubjectSchedule.DoesNotExist):
+            return JsonResponse({"error": "Subject not found"}, status=404)
 
-            if not file or not subject_id:
-                return JsonResponse({"error": "Missing image or subject ID"}, status=400)
+        image = request.FILES.get("image")
+        if not image:
+            return JsonResponse({"error": "Missing image"}, status=400)
 
-            # Get subject schedule
-            subject_schedule = SubjectSchedule.objects.filter(subject_id=subject_id).first()
-            if not subject_schedule:
-                return JsonResponse({"error": "No schedule found for this subject"}, status=404)
+        current_time = now().astimezone().time()
+        student = recognize_student(image)
+        if not student:
+            return JsonResponse({"error": "No recognized student"}, status=404)
 
-            # Compute grace periods
-            start_time = subject_schedule.start_time
-            grace_period_end = (datetime.combine(now().date(), start_time) + timedelta(minutes=5)).time()  # Present
-            late_period_end = (datetime.combine(now().date(), start_time) + timedelta(minutes=15)).time()  # Late
-            current_time = now().time()
-
-            # Determine attendance status
-            if current_time <= grace_period_end:
-                status = "Present"
-            elif current_time <= late_period_end:
-                status = "Late"
+        # Tukuyin kung PRESENT, LATE, o ABSENT
+        status = "absent"
+        if subject.start_time <= current_time <= subject.end_time:
+            if current_time <= subject.start_time.replace(minute=subject.start_time.minute + 15):
+                status = "present"
             else:
-                return JsonResponse({"error": "You are too late! Attendance not recorded."}, status=400)
+                status = "late"
 
-            # Process face recognition
-            np_arr = np.frombuffer(file.read(), np.uint8)
-            img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            face_locations = face_recognition.face_locations(rgb_img)
-            face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
+        # I-save ang attendance
+        Attendance.objects.update_or_create(
+            student=student,
+            subject=subject,
+            defaults={"status": status}
+        )
 
-            if not face_encodings:
-                return JsonResponse({"error": "No face detected"}, status=400)
+        return JsonResponse({
+            "student_name": student.get_full_name(),
+            "status": status
+        })
 
-            encoding = face_encodings[0]
-            students = Students.objects.exclude(face_encoding=None)
-
-            for student in students:
-                stored_encoding = np.array(json.loads(student.face_encoding))
-                matches = face_recognition.compare_faces([stored_encoding], encoding)
-
-                if matches[0]:
-                    today = now().date()
-                    attendance, created = Attendance.objects.get_or_create(
-                        subject_id=subject_id,
-                        attendance_date=today,
-                        session_year_id=student.session_year_id
-                    )
-
-                    AttendanceReport.objects.update_or_create(
-                        student=student,
-                        attendance=attendance,
-                        defaults={"status": status}
-                    )
-
-                    return JsonResponse({"message": f"✅ {student.admin.username} marked as {status}!"})
-
-            return JsonResponse({"error": "No matching student found"}, status=404)
-
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-    return JsonResponse({"error": "Invalid request"}, status=400)
+    return JsonResponse({"error": "Invalid request method"}, status=405)

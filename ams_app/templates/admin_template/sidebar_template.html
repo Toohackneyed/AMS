@@ -1,9 +1,9 @@
 {% load static %}
-<aside class="main-sidebar sidebar-dark-primary elevation-4">
+<aside class="main-sidebar sidebar-dark-primary elevation-4" style="background: linear-gradient(135deg, #0a0f2c, #1b2a49); box-shadow: 4px 4px 10px rgba(0, 212, 255, 0.2);">
     <!-- Brand Logo -->
     <a href="index3.html" class="brand-link">
       <img src="{% static 'dist/img/Logo.png' %}" alt="IdentiTech Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
-      <span class="brand-text font-weight-light">IdentiTech</span>
+      <span class="brand-text font-weight-light" style="color: #00d4ff; text-shadow: 0 0 10px #00d4ff;">IdentiTech</span>
     </a>
 
     <!-- Sidebar -->
@@ -14,17 +14,17 @@
           <img src="{% static 'dist/img/Logo.png' %}" class="img-circle elevation-2" alt="User Image">
         </div>
         <div class="info">
-          <a href="{% url 'admin_profile' %}" class="d-block">{{ user.username }}</a>
+          <a href="{% url 'admin_profile' %}" class="d-block"style="color: #00d4ff;">{{ user.username }}</a>
         </div>
       </div>
 
       <!-- SidebarSearch Form -->
       <div class="form-inline">
         <div class="input-group" data-widget="sidebar-search">
-          <input class="form-control form-control-sidebar" type="search" placeholder="Search" aria-label="Search">
+          <input class="form-control form-control-sidebar" type="search" placeholder="Search" aria-label="Search" style="border-radius: 8px; border: 1px solid #00d4ff; background: rgba(255, 255, 255, 0.1); color: white;">
           <div class="input-group-append">
-            <button class="btn btn-sidebar">
-              <i class="fas fa-search fa-fw"></i>
+            <button class="btn btn-sidebar" style="border-radius: 8px; border: 1px solid #00d4ff; background: rgba(255, 255, 255, 0.1); color: white;">
+              <i class="fas fa-search fa-fw"style="color: #00d4ff;"></i>
             </button>
           </div>
         </div>
@@ -36,16 +36,16 @@
           
           <li class="nav-item">
             {% url 'admin_home' as admin_home %}
-            <a href="{% url 'admin_home' %}" class="nav-link {% if request.path == admin_home %} active {% endif %}">
-              <i class="nav-icon fas fa-home"></i>
+            <a href="{% url 'admin_home' %}" class="nav-link {% if request.path == admin_home %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-home"style="color: #00d4ff;"></i>
               <p>Home</p>
             </a>
           </li>
 
           <li class="nav-item">
             {% url 'add_staff' as add_staff %}
-            <a href="{% url 'add_staff' %}" class="nav-link {% if request.path == add_staff %} active {% endif %}">
-              <i class="nav-icon fas fa-user-plus"></i>
+            <a href="{% url 'add_staff' %}" class="nav-link {% if request.path == add_staff %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-user-plus"style="color: #00d4ff;"></i>
               <p>Add Staff</p>
             </a>
           </li>
@@ -53,16 +53,16 @@
           <li class="nav-item">
             {% url 'manage_staff' as manage_staff %}
             {% url 'edit_staff' staff_id=id as edit_staff %}
-            <a href="{% url 'manage_staff' %}" class="nav-link {% if request.path == manage_staff %} active {% endif %} {% if request.path == edit_staff %} active {% endif %}">
-              <i class="nav-icon fas fa-users-cog"></i>
+            <a href="{% url 'manage_staff' %}" class="nav-link {% if request.path == manage_staff %} active {% endif %} {% if request.path == edit_staff %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-users-cog"style="color: #00d4ff;"></i>
               <p>Manage Staff</p>
             </a>
           </li>
 
           <li class="nav-item">
             {% url 'add_student' as add_student %}
-            <a href="{% url 'add_student' %}" class="nav-link {% if request.path == add_student %} active {% endif %}">
-              <i class="nav-icon fas fa-user-graduate"></i>
+            <a href="{% url 'add_student' %}" class="nav-link {% if request.path == add_student %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-user-graduate"style="color: #00d4ff;"></i>
               <p>Enroll Student</p>
             </a>
           </li>
@@ -70,16 +70,16 @@
           <li class="nav-item">
             {% url 'manage_student' as manage_student %}
             {% url 'edit_student' student_id=id as edit_student %}
-            <a href="{% url 'manage_student' %}" class="nav-link {% if request.path == manage_student %} active {% endif %} {% if request.path == edit_student %} active {% endif %}">
-              <i class="nav-icon fas fa-users"></i>
+            <a href="{% url 'manage_student' %}" class="nav-link {% if request.path == manage_student %} active {% endif %} {% if request.path == edit_student %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-users"style="color: #00d4ff;"></i>
               <p>Manage Student</p>
             </a>
           </li>
 
           <li class="nav-item">
             {% url 'add_course' as add_course %}
-            <a href="{% url 'add_course' %}" class="nav-link {% if request.path == add_course %} active {% endif %}">
-              <i class="nav-icon fas fa-book"></i>
+            <a href="{% url 'add_course' %}" class="nav-link {% if request.path == add_course %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-book"style="color: #00d4ff;"></i>
               <p>Add Course</p>
             </a>
           </li>
@@ -87,33 +87,32 @@
           <li class="nav-item">
             {% url 'manage_course' as manage_course %}
             {% url 'edit_course' course_id=id as edit_course %}
-            <a href="{% url 'manage_course' %}" class="nav-link {% if request.path == manage_course %} active {% endif %} {% if request.path == edit_course %} active {% endif %}">
-              <i class="nav-icon fas fa-folder-open"></i>
+            <a href="{% url 'manage_course' %}" class="nav-link {% if request.path == manage_course %} active {% endif %} {% if request.path == edit_course %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-folder-open"style="color: #00d4ff;"></i>
               <p>Manage Course</p>
             </a>
           </li>
 
           <li class="nav-item">
             {% url 'add_section' as add_section %}
-            <a href="{% url 'add_section' %}" class="nav-link {% if request.path == add_section %} active {% endif %}">
-              <i class="nav-icon fas fa-book"></i>
+            <a href="{% url 'add_section' %}" class="nav-link {% if request.path == add_section %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-book"style="color: #00d4ff;"></i>
               <p>Add Section</p>
             </a>
           </li>
 
           <li class="nav-item">
             {% url 'manage_section' as manage_section %}
-            {% url 'edit_section' section=id as edit_section %}
-            <a href="{% url 'manage_section' %}" class="nav-link {% if request.path == manage_section %} active {% endif %} {% if request.path == manage_section %} active {% endif %}">
-              <i class="nav-icon fas fa-folder-open"></i>
+            <a href="{% url 'manage_section' %}" class="nav-link {% if request.path == manage_section %} active {% endif %}" style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-layer-group" style="color: #00d4ff;"></i>
               <p>Manage Section</p>
             </a>
           </li>
 
           <li class="nav-item">
             {% url 'add_subject' as add_subject %}
-            <a href="{% url 'add_subject' %}" class="nav-link {% if request.path == add_subject %} active {% endif %}">
-              <i class="nav-icon fas fa-book-open"></i>
+            <a href="{% url 'add_subject' %}" class="nav-link {% if request.path == add_subject %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-book-open"style="color: #00d4ff;"></i>
               <p>Add Subject</p>
             </a>
           </li>
@@ -121,31 +120,31 @@
           <li class="nav-item">
             {% url 'manage_subject' as manage_subject %}
             {% url 'edit_subject' subject_id=id as edit_subject %}
-            <a href="{% url 'manage_subject' %}" class="nav-link {% if request.path == manage_subject %} active {% endif %} {% if request.path == edit_subject %} active {% endif %}">
-              <i class="nav-icon fas fa-tasks"></i>
+            <a href="{% url 'manage_subject' %}" class="nav-link {% if request.path == manage_subject %} active {% endif %} {% if request.path == edit_subject %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-tasks"style="color: #00d4ff;"></i>
               <p>Manage Subject</p>
             </a>
           </li>
 
           <li class="nav-item">
             {% url 'manage_session' as manage_session %}
-            <a href="{% url 'manage_session' %}" class="nav-link {% if request.path == manage_session %} active {% endif %}">
-              <i class="nav-icon fas fa-calendar-alt"></i>
+            <a href="{% url 'manage_session' %}" class="nav-link {% if request.path == manage_session %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-calendar-alt"style="color: #00d4ff;"></i>
               <p>Manage School Year</p>
             </a>
           </li>
 
           <li class="nav-item">
             {% url 'admin_view_attendance' as admin_view_attendance %}
-            <a href="{% url 'admin_view_attendance' %}" class="nav-link {% if request.path == admin_view_attendance %} active {% endif %}">
-              <i class="nav-icon fas fa-clipboard-list"></i>
+            <a href="{% url 'admin_view_attendance' %}" class="nav-link {% if request.path == admin_view_attendance %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-clipboard-list"style="color: #00d4ff;"></i>
               <p>View Attendance</p>
             </a>
           </li>
           <li class="nav-item">
             {% url 'face_recognition_attendance' as face_recognition_attendance %}
-            <a href="{% url 'face_recognition_attendance' %}" class="nav-link {% if request.path == face_recognition_attendance %} active {% endif %}">
-              <i class="nav-icon fas fa-camera"></i>
+            <a href="{% url 'face_recognition_attendance' %}" class="nav-link {% if request.path == face_recognition_attendance %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-camera"style="color: #00d4ff;"></i>
               <p>Face Recognition Attendance</p>
             </a>
           </li>
@@ -155,3 +154,18 @@
     </div>
     <!-- /.sidebar -->
   </aside>
+  <style>
+    .nav-link {
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .nav-link:hover {
+      background: rgba(0, 212, 255, 0.2);
+      box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+    }
+    .active {
+      background: linear-gradient(45deg, #00d4ff, #006eff);
+      box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
+    }
+  </style>
+  

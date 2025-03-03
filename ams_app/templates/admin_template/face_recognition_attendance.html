@@ -1,68 +1,144 @@
 {% extends 'admin_template/base_template.html' %}
 
 {% block page_title %}
-Face Recognition Attendance
+Live Attendance System
 {% endblock page_title %}
 
 {% block main_content %}
-<div class="container">
-    <h2>Face Recognition Attendance</h2>
-    <video id="video" width="640" height="480" autoplay></video>
-    <canvas id="canvas" width="640" height="480" hidden></canvas>
-    <p id="result" class="mt-3"></p>
+<div class="container text-center">
+    <h2>📡 Live Attendance System</h2>
+    
+    <h4 id="subject_info" class="text-danger">⏳ Checking for ongoing class...</h4>
+
+    <div class="video-container">
+        <video id="video" width="640" height="480" autoplay playsinline></video>
+        <button id="fullscreenBtn" class="btn btn-secondary">🔍 Fullscreen</button>
+    </div>
+
+    <canvas id="canvas" width="1280" height="720" hidden></canvas>
+
+    <p id="result" class="mt-3 text-info"></p>
 </div>
+
+<style>
+    .video-container {
+        position: relative;
+        display: inline-block;
+    }
+    #fullscreenBtn {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        cursor: pointer;
+    }
+</style>
 
 <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const result = document.getElementById('result');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const subjectInfo = document.getElementById('subject_info');
+    let subjectId = null;
+    let isProcessing = false;
+    let interval;
+    let isFullscreen = false;
 
-    // Access the camera
-    navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => video.srcObject = stream)
-        .catch(err => {
+    // ✅ Access Camera (High Resolution) with Error Handling
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+            video.srcObject = stream;
+        } catch (err) {
             console.error("Error accessing camera:", err);
             result.innerText = "⚠️ Please allow camera permissions.";
-        });
+        }
+    }
+    startCamera();
 
-    // Capture and check attendance every 5 seconds
-    video.addEventListener("play", () => {
-        console.log("📡 Camera opened, starting face detection...");
-        setInterval(() => {
-            captureAndCheckAttendance();
-        }, 5000);
+    // ✅ Fullscreen Toggle
+    fullscreenBtn.addEventListener("click", () => {
+        if (!isFullscreen) {
+            video.requestFullscreen();
+            fullscreenBtn.innerText = "🔙 Exit Fullscreen";
+        } else {
+            document.exitFullscreen();
+            fullscreenBtn.innerText = "🔍 Fullscreen";
+        }
+        isFullscreen = !isFullscreen;
     });
 
-    function captureAndCheckAttendance() {
-        const context = canvas.getContext("2d");
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        canvas.toBlob(blob => {
-            const formData = new FormData();
-            formData.append("image", blob);
-            formData.append("subject_id", "1"); // Replace with actual subject ID
-
-            console.log("📡 Sending POST request to /mark_attendance_live/");
-
-            fetch("/mark_attendance_live/", {
-                method: "POST",
-                body: formData
-            })
+    // ✅ Auto-check ongoing subject
+    function checkOngoingClass() {
+        fetch("/get_ongoing_subject/")
             .then(response => response.json())
             .then(data => {
-                console.log("🔍 Server response:", data);
-
-                // ✅ Display result in HTML
-                if (data.message) {
-                    result.innerText = `✅ ${data.message}`;
-                } else if (data.error) {
-                    result.innerText = `❌ ${data.error}`;
+                if (data.ongoing_classes && data.ongoing_classes.length > 0) {
+                    const subject = data.ongoing_classes[0]; // Get the first ongoing class
+                    subjectId = subject.subject_id;
+                    subjectInfo.innerText = `📚 Ongoing Class: ${subject.subject_name}`;
+                    startFaceRecognition();
                 } else {
-                    result.innerText = "⚠️ Unexpected response received.";
+                    subjectInfo.innerText = "❌ No ongoing class.";
+                    subjectId = null;
+                    clearInterval(interval);
                 }
             })
-            .catch(error => console.error("❌ Fetch error:", error));
-        }, "image/png");
+            .catch(error => {
+                console.error("❌ Error checking schedule:", error);
+                subjectInfo.innerText = "⚠️ Error fetching schedule.";
+            });
+    }
+    setInterval(checkOngoingClass, 10000); // Check every 10 seconds
+
+    // ✅ CSRF Token Function
+    function getCSRFToken() {
+        const csrfToken = document.cookie.match(/csrftoken=([^;]+)/);
+        return csrfToken ? csrfToken[1] : "";
+    }
+
+    // ✅ Face Recognition & Attendance Marking
+    function startFaceRecognition() {
+        if (interval) clearInterval(interval);
+
+        interval = setInterval(() => {
+            if (isProcessing || !subjectId) return;
+            isProcessing = true;
+
+            const context = canvas.getContext("2d");
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append("image", blob);
+                formData.append("subject_id", subjectId);
+
+                fetch('/auto_mark_attendance_live/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCSRFToken() },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        result.innerText = `✅ Attendance Marked for ${data.student_name}`;
+                    } else {
+                        result.innerText = `❌ ${data.error || "Attendance Failed"}`;
+                    }
+                })
+                .catch(error => {
+                    console.error("❌ Attendance Error:", error);
+                    result.innerText = "⚠️ Error marking attendance.";
+                })
+                .finally(() => {
+                    isProcessing = false;
+                });
+            }, "image/png");
+        }, 5000);
     }
 </script>
 {% endblock main_content %}
