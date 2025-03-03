@@ -96,16 +96,27 @@ class SubjectSchedule(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     objects = models.Manager()
 
+class Sections(models.Model):
+    section_name = models.CharField(max_length=100, unique=True)  # Unique para walang duplicate
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    objects = models.Manager()
+
+    def __str__(self):
+        return self.section_name
+    
 class Students(models.Model):
     admin = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     gender = models.CharField(max_length=255)
     profile_pic = models.ImageField(upload_to="profile_pics/", null=True, blank=True)
     id_number = models.CharField(max_length=255, unique=True)
     rfid = models.CharField(max_length=100, unique=True)
-    course_id = models.ForeignKey(Courses, on_delete=models.DO_NOTHING)
+    course_id= models.ForeignKey(Courses, on_delete=models.DO_NOTHING)
+    selected_courses = models.ManyToManyField(Courses, related_name="students_selected", blank=True)
     session_year_id = models.ForeignKey(SessionYearModel, on_delete=models.CASCADE)
     subjects = models.ManyToManyField(Subjects, through="Enrollment", blank=True)
     face_encoding = models.JSONField(null=True, blank=True)
+    section = models.ForeignKey(Sections, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     objects = models.Manager()
@@ -117,9 +128,9 @@ class Students(models.Model):
         super().delete(*args, **kwargs)  # Delete the Student record
 
     def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)  # Save first so profile_pic is available
         if self.profile_pic:
             self.generate_face_encoding()
-        super().save(*args, **kwargs)
 
     def generate_face_encoding(self):
         """Extract face encoding from the uploaded profile picture."""
@@ -140,7 +151,6 @@ class Students(models.Model):
 
     def get_face_encoding(self):
         return json.loads(self.face_encoding) if self.face_encoding else None
-
 class Enrollment(models.Model):
     student = models.ForeignKey(Students, on_delete=models.CASCADE)
     subject = models.ForeignKey(Subjects, on_delete=models.CASCADE)
@@ -186,16 +196,20 @@ def create_user_profile(sender, instance, created, **kwargs):
             Staffs.objects.create(admin=instance)
         elif instance.user_type == 3:
             try:
-                default_course = Courses.objects.get(id=1)  
-                default_session = SessionYearModel.objects.get(id=1)
-                Students.objects.create(
-                    admin=instance,
-                    course_id=default_course,
-                    session_year_id=default_session,
-                    rfid="",
-                    profile_pic="",
-                    gender=""
-                )
+                default_course = Courses.objects.first()
+                default_session = SessionYearModel.objects.first()
+                if default_course and default_session:
+                    Students.objects.create(
+                        admin=instance,
+                        course_id=default_course,
+                        session_year_id=default_session,
+                        rfid="",
+                        profile_pic="",
+                        gender=""
+                    )
+                else:
+                    print("Error: No default course or session year found!")
+
             except Courses.DoesNotExist or SessionYearModel.DoesNotExist:
                 print("Error: No default course or session year found!")
 
@@ -219,3 +233,39 @@ def delete_staff_user(sender, instance, **kwargs):
     """Automatically delete CustomUser when a Staff is deleted"""
     if instance.admin:
         instance.admin.delete()
+
+@receiver(post_save, sender=Students)
+def enroll_student_in_subjects(sender, instance, created, **kwargs):
+    if created:
+        all_courses = list(instance.selected_courses.all())  # Get selected courses
+        all_courses.append(instance.course_id)  # Include the main course
+
+        # Get all subjects from both main & selected courses
+        subjects = Subjects.objects.filter(course__in=all_courses)
+
+        # Enroll only in subjects that the student is NOT already enrolled in
+        existing_subjects = set(Enrollment.objects.filter(student=instance).values_list("subject_id", flat=True))
+
+        for subject in subjects:
+            if subject.id not in existing_subjects:  # Avoid duplicate enrollment
+                Enrollment.objects.create(student=instance, subject=subject)
+
+@receiver(post_save, sender=Students)
+def update_student_enrollments(sender, instance, **kwargs):
+    all_courses = list(instance.selected_courses.all())  # Get selected courses
+    all_courses.append(instance.course_id)  # Include the main course
+
+    subjects = Subjects.objects.filter(course__in=all_courses)
+
+    # Get all subjects the student is currently enrolled in
+    existing_enrollments = Enrollment.objects.filter(student=instance)
+    existing_subjects = set(existing_enrollments.values_list("subject_id", flat=True))
+
+    # Enroll in missing subjects
+    for subject in subjects:
+        if subject.id not in existing_subjects:
+            Enrollment.objects.create(student=instance, subject=subject)
+
+    # Remove enrollments for subjects no longer available
+    existing_enrollments.exclude(subject__in=subjects).delete()
+

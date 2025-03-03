@@ -94,6 +94,23 @@
           </li>
 
           <li class="nav-item">
+            {% url 'add_section' as add_section %}
+            <a href="{% url 'add_section' %}" class="nav-link {% if request.path == add_section %} active {% endif %}">
+              <i class="nav-icon fas fa-book"></i>
+              <p>Add Section</p>
+            </a>
+          </li>
+
+          <li class="nav-item">
+            {% url 'manage_section' as manage_section %}
+            {% url 'edit_section' section=id as edit_section %}
+            <a href="{% url 'manage_section' %}" class="nav-link {% if request.path == manage_section %} active {% endif %} {% if request.path == manage_section %} active {% endif %}">
+              <i class="nav-icon fas fa-folder-open"></i>
+              <p>Manage Section</p>
+            </a>
+          </li>
+
+          <li class="nav-item">
             {% url 'add_subject' as add_subject %}
             <a href="{% url 'add_subject' %}" class="nav-link {% if request.path == add_subject %} active {% endif %}">
               <i class="nav-icon fas fa-book-open"></i>

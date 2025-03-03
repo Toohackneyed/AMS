@@ -18,6 +18,7 @@ import logging
 import json
 import base64
 import io
+from django.db import transaction
 from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
@@ -26,7 +27,7 @@ from django.core.cache import cache
 from datetime import datetime, timedelta
 from django.utils.timezone import now
 
-from ams_app.models import CustomUser, SessionTimeModel, Staffs, Courses, Subjects, Students, SessionYearModel, SubjectSchedule, Attendance, AttendanceReport, Enrollment
+from ams_app.models import CustomUser, SessionTimeModel, Staffs, Courses, Subjects,Sections, Students, SessionYearModel, SubjectSchedule, Attendance, AttendanceReport, Enrollment
 
 @login_required
 def admin_home(request):
@@ -53,9 +54,12 @@ def admin_home(request):
     student_count_list_in_subject = []
 
     for subject in Subjects.objects.all():
-        student_count = Students.objects.filter(course_id=subject.course).count()
+        student_count = Enrollment.objects.filter(subject=subject).count()  # ✅ Tamang query
         subject_list.append(subject.subject_name)
         student_count_list_in_subject.append(student_count)
+
+    # Debugging: I-check kung tama ang bilang ng students per subject
+    print("Subject count list:", student_count_list_in_subject)
 
     # Prepare dashboard boxes
     dashboard_boxes = [
@@ -134,15 +138,31 @@ def add_course_save(request):
         except :
             messages.error(request,"Failed To Add Course")
             return HttpResponseRedirect(reverse("add_course"))
+        
+def add_section(request):
+    return render(request,"admin_template/add_section_template.html")
+
+def add_section_save(request):
+    if request.method!="POST":
+        return HttpResponse("Method Not Allowed")
+    else:
+        section=request.POST.get("section")
+        try:
+            section_model=Sections(section_name=section)
+            section_model.save()
+            messages.success(request,"Successfully Added Section")
+            return HttpResponseRedirect(reverse("add_section"))
+        except :
+            messages.error(request,"Failed To Add Section")
+            return HttpResponseRedirect(reverse("add_section"))
 
 def get_subjects_by_course(request):
     course_ids = request.GET.get("courses")
-    
     if not course_ids:
-        return JsonResponse({"subjects": []})
+        return JsonResponse({"subjects": []})  # Walang course na pinili
     
-    course_ids = course_ids.split(",")  # Convert CSV to list
-    subjects = Subjects.objects.filter(course_id__in=course_ids).values("id", "subject_name")
+    course_ids = course_ids.split(",")  # Convert CSV string to list
+    subjects = Subjects.objects.filter(course__id__in=course_ids).values("id", "subject_name")
 
     return JsonResponse({"subjects": list(subjects)})
 
@@ -163,6 +183,7 @@ def add_student_save(request):
             password = form.cleaned_data["password"]
             rfid = form.cleaned_data["rfid"]
             id_number = form.cleaned_data["id_number"]
+            section_id = request.POST.get("section")  # ✅ Get section ID
             session_year_id = int(form.cleaned_data["session_year_id"])
             course_id = form.cleaned_data["course"]
             gender = form.cleaned_data["gender"]
@@ -178,7 +199,7 @@ def add_student_save(request):
                     first_name=first_name,
                     user_type=3
                 )
-                
+
                 # Assign student details
                 user.students.rfid = rfid
                 user.students.id_number = id_number
@@ -188,22 +209,37 @@ def add_student_save(request):
                 user.students.session_year_id = session_year
                 user.students.gender = gender
 
+                # ✅ Fix Section Assignment
+                section = Sections.objects.get(id=section_id)  # Get Section object from ID
+                user.students.section = section  # ✅ Assign Section object
+
                 # Save profile picture properly
                 if profile_pic:
-                    user.students.profile_pic = profile_pic  # ✅ Correct way to save
+                    user.students.profile_pic = profile_pic 
 
-                user.save()
+                # ✅ Save student data first
+                user.students.save()
 
-                # Save subjects using Enrollment model
-                selected_subjects = request.POST.getlist("subjects")  # Use getlist() for multiple values
+                # ✅ Handle Subject Enrollment
+                selected_subjects = request.POST.getlist("subjects")  
                 if not selected_subjects:
                     messages.error(request, "Please select at least one subject.")
                     return HttpResponseRedirect(reverse("add_student"))
 
+                # 🔥 Delete old enrollments para walang duplicates
+                Enrollment.objects.filter(student=user.students).delete()
+
+                # ✅ Save only selected subjects
+                for subject_id in selected_subjects:
+                    subject = Subjects.objects.get(id=subject_id)
+                    Enrollment.objects.create(student=user.students, subject=subject)
 
                 messages.success(request, "Successfully Added Student")
                 return HttpResponseRedirect(reverse("add_student"))
 
+            except Sections.DoesNotExist:
+                messages.error(request, "Selected section does not exist.")
+                return HttpResponseRedirect(reverse("add_student"))
             except Exception as e:
                 messages.error(request, f"Failed to Add Student: {str(e)}")
                 return HttpResponseRedirect(reverse("add_student"))
@@ -266,10 +302,14 @@ def manage_staff(request):
     staffs = Staffs.objects.all()  # Fetch staff records
     return render(request, "admin_template/manage_staff_template.html", {"staffs": staffs})  # Pass staff records to the template
 def manage_student(request):
+    selected_subjects = request.GET.getlist("subjects")  # Kunin ang mga piniling subjects
     students = Students.objects.select_related("admin", "course_id", "session_year_id") \
                                .prefetch_related("enrollment_set__subject").all()
 
-    # Debugging: Print enrolled subjects
+    if selected_subjects:
+        students = students.filter(enrollment_set__subject__id__in=selected_subjects).distinct()
+
+    # Debugging: Print enrolled subjects after filtering
     for student in students:
         print(f"Student: {student.admin.first_name} {student.admin.last_name}")
         for enrollment in student.enrollment_set.all():
@@ -277,10 +317,13 @@ def manage_student(request):
 
     return render(request, "admin_template/manage_student_template.html", {"students": students})
 
-
 def manage_course(request):
     courses = Courses.objects.all()
     return render(request, "admin_template/manage_course_template.html", {"courses": courses})
+
+def manage_section(request):
+    sections = Sections.objects.all()
+    return render(request, "admin_template/manage_section_template.html", {"sections": sections})
 
 def manage_subject(request):
     subjects = Subjects.objects.all()  # Fetch staff records
@@ -318,80 +361,94 @@ def edit_staff_save(request):
             messages.error(request,"Failed to Edit Staff")
             return HttpResponseRedirect(reverse("edit_staff",kwargs={"staff_id":staff_id}))
 
-def edit_student(request,student_id):
-    request.session['student_id']=student_id
-    student=Students.objects.get(admin=student_id)
-    form=EditStudentForm()
-    form.fields['email'].initial=student.admin.email
-    form.fields['first_name'].initial=student.admin.first_name
-    form.fields['last_name'].initial=student.admin.last_name
-    form.fields['username'].initial=student.admin.username
-    form.fields['rfid'].initial=student.rfid
-    form.fields['id_number'].initial=student.id_number
-    form.fields['course'].initial=student.course_id.id
-    form.fields['gender'].initial=student.gender
-    form.fields['session_year_id'].initial=student.session_year_id.id
+def edit_student(request, student_id):
+    student = Students.objects.get(admin=student_id)
 
-    return render(request,"admin_template/edit_student_template.html",{"form":form,"id":student_id,"username":student.admin.username, "id_number": student.id_number})
+    selected_courses_ids = list(student.selected_courses.values_list("id", flat=True))
+    enrolled_subjects = list(Enrollment.objects.filter(student=student).values("subject__id", "subject__subject_name"))
+
+    form = EditStudentForm(initial={
+        "email": student.admin.email,
+        "first_name": student.admin.first_name,
+        "last_name": student.admin.last_name,
+        "username": student.admin.username,
+        "id_number": student.id_number,
+        "rfid": student.rfid,
+        "gender": student.gender,
+        "course": student.course_id.id if student.course_id else None,
+        "section": student.section,  # ✅ Plain text field lang
+    })
+    form.fields['course'].choices = [(c.id, c.course_name) for c in Courses.objects.all()]
+
+    context = {
+        "form": form,
+        "student": student,
+        "all_courses": Courses.objects.all(),
+        "sections": Sections.objects.all(), 
+        "selected_courses_ids": selected_courses_ids,
+        "enrolled_subjects": enrolled_subjects,  
+    }
+    return render(request, "admin_template/edit_student_template.html", context)
 
 def edit_student_save(request):
-    if request.method!="POST":
-        return HttpResponse("<h2>Method Not Allowed</h2>")
-    else:
-        student_id=request.session.get("student_id")
-        if student_id==None:
-            return HttpResponseRedirect(reverse("manage_student"))
+    if request.method != "POST":
+        messages.error(request, "Invalid Request")
+        return redirect("manage_student")
 
-        form=EditStudentForm(request.POST,request.FILES)
-        if form.is_valid():
-            email = form.cleaned_data["email"]
-            first_name = form.cleaned_data["first_name"]
-            last_name = form.cleaned_data["last_name"]
-            username = form.cleaned_data["username"]
-            rfid = form.cleaned_data["rfid"]
-            id_number = form.cleaned_data["id_number"]
-            course_id = form.cleaned_data["course"]
-            gender = form.cleaned_data["gender"]
-            session_year_id=form.cleaned_data["session_year_id"]
+    student_id = request.POST.get("student_id")
+    main_course_id = request.POST.get("course_id")
+    selected_course_ids = request.POST.getlist("selected_courses")
+    subject_ids = request.POST.getlist("subjects")
+    section = request.POST.get("section")  # ✅ GET SECTION AS TEXT
 
-            if request.FILES.get('profile_pic',False):
-                profile_pic=request.FILES['profile_pic']
-                fs=FileSystemStorage()
-                filename=fs.save(profile_pic.name,profile_pic)
-                profile_pic_url=fs.url(filename)
-            else:
-                profile_pic_url=None
+    # Kunin ang ibang fields mula sa POST request
+    email = request.POST.get("email")
+    first_name = request.POST.get("first_name")
+    last_name = request.POST.get("last_name")
+    username = request.POST.get("username")
+    id_number = request.POST.get("id_number")
+    rfid = request.POST.get("rfid")
+    gender = request.POST.get("gender")
+    section_id = request.POST.get("section")
 
+    try:
+        with transaction.atomic():
+            student = get_object_or_404(Students, admin=student_id)
+            
+            # Update student details
+            student.admin.email = email
+            student.admin.first_name = first_name
+            student.admin.last_name = last_name
+            student.admin.username = username
+            student.id_number = id_number
+            student.rfid = rfid
+            student.gender = gender
+            student.admin.save()  # Save admin fields
+            student.save()  # Save student fields
 
-            try:
-                user=CustomUser.objects.get(id=student_id)
-                user.first_name=first_name
-                user.last_name=last_name
-                user.username=username
-                user.email=email
-                user.save()
+            # Update courses
+            student.course = Courses.objects.get(id=main_course_id) if main_course_id else None
+            student.selected_courses.set(Courses.objects.filter(id__in=selected_course_ids))
 
-                student=Students.objects.get(admin=student_id)
-                student.rfid=rfid
-                session_year = SessionYearModel.objects.get(id=session_year_id)
-                student.session_year_id = session_year
-                student.id_number=id_number
-                student.gender=gender
-                course=Courses.objects.get(id=course_id)
-                student.course_id=course
-                if profile_pic_url!=None:
-                    student.profile_pic=profile_pic_url
-                student.save()
-                del request.session['student_id']
-                messages.success(request,"Successfully Edited Student")
-                return HttpResponseRedirect(reverse("edit_student",kwargs={"student_id":student_id}))
-            except:
-                messages.error(request,"Failed to Edit Student")
-                return HttpResponseRedirect(reverse("edit_student",kwargs={"student_id":student_id}))
-        else:
-            form=EditStudentForm(request.POST)
-            student=Students.objects.get(admin=student_id)
-            return render(request,"hod_template/edit_student_template.html",{"form":form,"id":student_id,"username":student.admin.username, "id_number": id_number})
+            # ✅ Save section as plain text
+            student.section = get_object_or_404(Sections, id=section_id)
+            student.save()
+
+            # Update subjects
+            current_subjects = set(Enrollment.objects.filter(student=student).values_list("subject_id", flat=True))
+            new_subjects = set(map(int, subject_ids))
+
+            Enrollment.objects.bulk_create(
+                [Enrollment(student=student, subject_id=subj_id) for subj_id in new_subjects - current_subjects]
+            )
+            Enrollment.objects.filter(student=student, subject_id__in=current_subjects - new_subjects).delete()
+
+        messages.success(request, "Student updated successfully")
+        return redirect("manage_student")
+
+    except Exception as e:
+        messages.error(request, f"Error: {str(e)}")
+        return redirect("edit_student", student_id=student_id)
 
 def edit_subject(request, subject_id):
     subject = Subjects.objects.prefetch_related("schedules").get(id=subject_id)
@@ -475,7 +532,34 @@ def edit_course_save(request):
     except:
         messages.error(request, "Failed to Edit Course")
         return HttpResponseRedirect(reverse("edit_course", kwargs={"course_id": course_id}))
+    
+def edit_section(request, section_id):
+    """ Load the edit section page with existing section details """
+    section = get_object_or_404(Sections, id=section_id)
+    return render(request, "admin_template/edit_section_template.html", {"section": section, "id": section_id})
 
+
+def edit_section_save(request):
+    """ Save edited section details """
+    if request.method != "POST":
+        return HttpResponse("<h2>Method Not Allowed</h2>")
+
+    section_id = request.POST.get("section_id")
+    section_name = request.POST.get("section")
+
+    if not section_name.strip():  # ✅ Prevent saving empty names
+        messages.error(request, "Section name cannot be empty.")
+        return HttpResponseRedirect(reverse("edit_section", kwargs={"section_id": section_id}))
+
+    try:
+        section = get_object_or_404(Sections, id=section_id)
+        section.section_name = section_name
+        section.save()
+        messages.success(request, "Successfully Edited Section")
+    except Exception as e:
+        messages.error(request, f"Failed to Edit Section: {str(e)}")
+
+    return HttpResponseRedirect(reverse("edit_section", kwargs={"section_id": section_id}))
 def manage_session(request):
     # Kunin ang pinakabagong session year mula sa database (kung meron)
     latest_session = SessionYearModel.objects.order_by('-id').first()  # Kukunin ang pinaka-latest na session
@@ -580,6 +664,12 @@ def delete_course(request, course_id):
     messages.success(request, "Course successfully deleted.")
     return redirect('manage_course') 
 
+def delete_section(request, section_id):
+    section = get_object_or_404(Sections, id=section_id)
+    section.delete()
+    messages.success(request, "Section successfully deleted.")
+    return redirect('manage_section') 
+
 def delete_session(request, session_id):
     session = get_object_or_404(SessionYearModel, id=session_id)
     session.delete()
@@ -618,10 +708,9 @@ def delete_subject(request, subject_id):
     return redirect('manage_subject')
 
 def delete_student(request, student_id):
-    student = get_object_or_404(Students, admin__id=student_id)  # Use admin.id to get the student
+    student = get_object_or_404(CustomUser, id=student_id)
     student.delete()
-    messages.success(request, "Student successfully deleted.")
-    return redirect('manage_student')  # Adjust the redirect to the correct name for your student management view
+    return redirect('manage_student') # Adjust the redirect to the correct name for your student management view
 
 def face_recognition_attendance(request):
     """Render the Face Recognition Attendance page."""
