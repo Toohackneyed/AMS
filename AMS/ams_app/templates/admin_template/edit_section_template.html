@@ -1,0 +1,44 @@
+{% extends 'admin_template/base_template.html' %}
+
+{% block page_title %}
+Edit Section | Section ID: {{ section.id }}
+{% endblock page_title %}
+
+{% block main_content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow-lg border-0 rounded">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="card-title">Edit Section</h3>
+                    </div>
+
+                    <form role="form" action="/edit_section_save" method="post">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <!-- Section Name Input -->
+                            <div class="form-group">
+                                <label class="font-weight-bold">Section Name</label>
+                                <input type="text" class="form-control" name="section" placeholder="Enter Section" value="{{ section.section_name }}" required>
+                                <input type="hidden" name="section_id" value="{{ section.id }}">
+                            </div>
+
+                            <!-- Flash Messages -->
+                            {% if messages %}
+                                {% for message in messages %}
+                                    <div class="alert alert-{{ message.tags }} mt-2">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-primary btn-block">Save Section</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock main_content %}

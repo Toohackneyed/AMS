@@ -1,0 +1,100 @@
+{% extends 'admin_template/base_template.html' %}
+
+{% block page_title %}Dashboard{% endblock page_title %}
+
+{% block main_content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            {% for box in dashboard_boxes %}
+            <div class="col-lg-3 col-6">
+                <div class="small-box {{ box.color }} shadow-lg" style="border-radius: 12px; background: linear-gradient(135deg, rgba(0, 212, 255, 0.8), rgba(0, 110, 255, 0.8)); color: white;">
+                    <div class="inner">
+                        <h3>{{ box.value }}</h3>
+                        <p>{{ box.label }}</p>
+                    </div>
+                    <div class="icon">
+                        <i class="{{ box.icon }}" style="opacity: 0.7;"></i>
+                    </div>
+                    <a href="{% url box.url %}" class="small-box-footer text-light" style="border-top: 1px solid rgba(255, 255, 255, 0.5);">More info <i class="fas fa-arrow-circle-right"></i></a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="card" style="border-radius: 12px; box-shadow: 0px 4px 10px rgba(0, 212, 255, 0.3);">
+                    <div class="card-header bg-danger text-white" style="border-radius: 12px 12px 0 0;">
+                        <h3 class="card-title">Student and Staff Chart</h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool text-white" data-card-widget="collapse"><i class="fas fa-minus"></i></button>
+                            <button type="button" class="btn btn-tool text-white" data-card-widget="remove"><i class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="pieChart" style="height: 250px; max-width: 100%;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card" style="border-radius: 12px; box-shadow: 0px 4px 10px rgba(0, 212, 255, 0.3);">
+                    <div class="card-header bg-success text-white" style="border-radius: 12px 12px 0 0;">
+                        <h3 class="card-title">Total Subject in Each Course</h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool text-white" data-card-widget="collapse"><i class="fas fa-minus"></i></button>
+                            <button type="button" class="btn btn-tool text-white" data-card-widget="remove"><i class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="donutChart" style="height: 250px; max-width: 100%;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock main_content %}
+
+{% block custom_js %}
+<script>
+$(document).ready(function(){
+    console.log("🟢 DEBUG: Chart Data Loaded");  // Debugging
+
+    var studentCount = {{ student_count|default:0 }};
+    var staffCount = {{ staff_count|default:0 }};
+    
+    console.log("🟢 DEBUG: Students =", studentCount);
+    console.log("🟢 DEBUG: Staff =", staffCount);
+
+    var pieData = {
+        labels: ['Students', 'Staffs'],
+        datasets: [{
+            data: [studentCount, staffCount],
+            backgroundColor: ['#ff6b6b', '#1dd1a1']
+        }]
+    };
+    
+    var pieChartCanvas = $('#pieChart').get(0).getContext('2d');
+    new Chart(pieChartCanvas, { type: 'pie', data: pieData });
+
+    var courseNames = {{ course_name_list|safe }};
+    var subjectCounts = {{ subject_count_list|safe }};
+    
+    console.log("🟢 DEBUG: Courses =", courseNames);
+    console.log("🟢 DEBUG: Subject Counts =", subjectCounts);
+
+    var donutData = {
+        labels: courseNames,
+        datasets: [{
+            data: subjectCounts,
+            backgroundColor: ['#ff6b6b', '#1dd1a1', '#feca57', '#54a0ff']
+        }]
+    };
+
+    var donutChartCanvas = $('#donutChart').get(0).getContext('2d');
+    new Chart(donutChartCanvas, { type: 'doughnut', data: donutData });
+});
+</script>
+
+{% endblock custom_js %}

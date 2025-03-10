@@ -1,0 +1,81 @@
+{% extends 'admin_template/base_template.html' %}
+
+{% block page_title %}
+{% endblock page_title %}
+
+{% block main_content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <!-- Form Card -->
+                <div class="card shadow-lg border-0 rounded">
+                    <div class="card-header text-white" style="background: linear-gradient(135deg, #0a74da, #003366);">
+                        <h3 class="card-title text-center">Add Staff</h3>
+                    </div>
+                    <!-- Form Start -->
+                    <form role="form" action="/add_staff_save" method="post">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Email Address</label>
+                                <input type="email" class="form-control rounded" name="email" placeholder="Enter email" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Password</label>
+                                <input type="password" class="form-control rounded" name="password" placeholder="Enter password" required>
+                            </div>
+                            <div class="form-group">
+                                <label>First Name</label>
+                                <input type="text" class="form-control rounded" name="first_name" placeholder="First Name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Last Name</label>
+                                <input type="text" class="form-control rounded" name="last_name" placeholder="Last Name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Username</label>
+                                <input type="text" class="form-control rounded" name="username" placeholder="Username" required>
+                            </div>
+
+                            <!-- Messages -->
+                            <div class="form-group">
+                                {% if messages %}
+                                    {% for message in messages %}
+                                        <div class="alert alert-{{ message.tags }} mt-2">{{ message }}</div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="card-footer bg-white text-center">
+                            <button type="submit" class="btn btn-primary btn-lg w-100 rounded shadow-sm">Add Staff</button>
+                        </div>
+                    </form>
+                </div>
+                <!-- /.card -->
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+    .card {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .form-control {
+        border-radius: 8px;
+        padding: 10px;
+    }
+    .btn-primary {
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        border: none;
+    }
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #0056b3, #003366);
+    }
+</style>
+
+{% endblock main_content %}

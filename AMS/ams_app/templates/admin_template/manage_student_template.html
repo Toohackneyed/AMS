@@ -1,0 +1,116 @@
+{% extends 'admin_template/base_template.html' %}
+
+{% block page_title %}
+{% endblock page_title %}
+
+{% block main_content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-12">
+                <div class="card shadow-lg border-0 rounded">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+                        <h3 class="card-title">Student Details</h3>
+                        <div class="card-tools">
+                            <input type="text" id="searchInput" class="form-control" placeholder="Search student...">
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="card-body table-responsive p-0">
+                        <table class="table table-hover text-nowrap table-bordered" id="studentTable">
+                            <thead class="thead-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>RFID</th>
+                                    <th>Student ID</th>
+                                    <th>Section</th>
+                                    <th>First Name</th>
+                                    <th>Last Name</th>
+                                    <th>Course</th>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Gender</th>
+                                    <th>Session Year</th>
+                                    <th>Enrolled Subjects</th>
+                                    <th>Profile Picture</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in students %}
+                                <tr>
+                                    <td>{{ student.admin.id }}</td>
+                                    <td>{{ student.rfid }}</td>
+                                    <td>{{ student.id_number }}</td>
+                                    <td>{{ student.section.section_name }}</td>
+                                    <td>{{ student.admin.first_name }}</td>
+                                    <td>{{ student.admin.last_name }}</td>
+                                    <td>{{ student.course_id.course_name }}</td>
+                                    <td>{{ student.admin.username }}</td>
+                                    <td>{{ student.admin.email }}</td>
+                                    <td>{{ student.gender }}</td>
+                                    <td>{{ student.session_year_id.session_start_date }} - {{ student.session_year_id.session_end_date }}</td>
+
+                                    <!-- Enrolled Subjects -->
+                                    <td>
+                                        {% with student.enrollment_set.all as enrollments %}
+                                            {% if enrollments %}
+                                                <ul class="pl-3 mb-0">
+                                                    {% for enrollment in enrollments %}
+                                                        <li>{{ enrollment.subject.subject_name }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            {% else %}
+                                                <span class="text-muted">No subjects enrolled</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                    
+                                    <td>
+                                        {% if student.profile_pic %}
+                                            <img src="{{ student.profile_pic.url }}" class="img-thumbnail" style="width:70px; height:70px; object-fit: cover;"/>
+                                        {% else %}
+                                            <span class="text-muted">No Image</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'edit_student' student_id=student.admin.id %}" class="btn btn-sm btn-success">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'delete_student' student_id=student.admin.id %}" class="btn btn-sm btn-danger" onclick="return confirmDelete();">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- JavaScript -->
+<script>
+    // Confirm Delete Function
+    function confirmDelete() {
+        return confirm("Are you sure you want to delete this student? This action cannot be undone.");
+    }
+
+    // Live Search Functionality
+    document.getElementById("searchInput").addEventListener("keyup", function () {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll("#studentTable tbody tr");
+
+        rows.forEach(row => {
+            let text = row.textContent.toLowerCase();
+            row.style.display = text.includes(filter) ? "" : "none";
+        });
+    });
+</script>
+
+{% endblock main_content %}

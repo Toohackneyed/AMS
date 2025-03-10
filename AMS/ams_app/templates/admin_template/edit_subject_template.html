@@ -1,0 +1,129 @@
+{% extends 'admin_template/base_template.html' %}
+
+{% block page_title %}
+Edit Subject | ID: {{ subject.id }}
+{% endblock page_title %}
+
+{% block main_content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card shadow-lg border-0 rounded">
+                    <div class="card-header bg-warning text-white">
+                        <h3 class="card-title">Edit Subject</h3>
+                    </div>
+
+                    <form role="form" action="/edit_subject_save" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="subject_id" value="{{ subject.id }}">
+
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Subject Code</label>
+                                <input type="text" class="form-control" name="subject_code" required value="{{ subject.subject_code }}">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Subject Name</label>
+                                <input type="text" class="form-control" name="subject_name" required value="{{ subject.subject_name }}">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Course</label>
+                                <select class="form-control" name="course">
+                                    {% for course in courses %}
+                                    <option value="{{ course.id }}" {% if course.id == subject.course.id %} selected {% endif %}>{{ course.course_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Staff</label>
+                                <select class="form-control" name="staff">
+                                    {% for staff in staffs %}
+                                    <option value="{{ staff.id }}" {% if staff.id == subject.staff.id %} selected {% endif %}>
+                                        {{ staff.admin.first_name }} {{ staff.admin.last_name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Schedules</label>
+                                <div id="schedule-container">
+                                    {% for schedule in subject.schedules.all %}
+                                    <div class="schedule-entry d-flex gap-2 mb-2">
+                                        <input type="hidden" name="schedule_ids[]" value="{{ schedule.id }}">
+
+                                        <select class="form-control" name="day_of_week[]">
+                                            <option value="Monday" {% if schedule.day_of_week == "Monday" %} selected {% endif %}>Monday</option>
+                                            <option value="Tuesday" {% if schedule.day_of_week == "Tuesday" %} selected {% endif %}>Tuesday</option>
+                                            <option value="Wednesday" {% if schedule.day_of_week == "Wednesday" %} selected {% endif %}>Wednesday</option>
+                                            <option value="Thursday" {% if schedule.day_of_week == "Thursday" %} selected {% endif %}>Thursday</option>
+                                            <option value="Friday" {% if schedule.day_of_week == "Friday" %} selected {% endif %}>Friday</option>
+                                            <option value="Saturday" {% if schedule.day_of_week == "Saturday" %} selected {% endif %}>Saturday</option>
+                                            <option value="Sunday" {% if schedule.day_of_week == "Sunday" %} selected {% endif %}>Sunday</option>
+                                        </select>
+
+                                        <input type="time" class="form-control" name="start_time[]" required value="{{ schedule.start_time|time:'H:i' }}">
+                                        <input type="time" class="form-control" name="end_time[]" required value="{{ schedule.end_time|time:'H:i' }}">
+                                        <button type="button" class="btn btn-danger remove-schedule">Remove</button>
+                                    </div>
+                                    {% empty %}
+                                    <p class="text-muted">No schedules assigned. Add one below.</p>
+                                    {% endfor %}
+                                </div>
+                                <button type="button" class="btn btn-success mt-2" id="add-schedule">Add Schedule</button>
+                            </div>
+
+                            {% if messages %}
+                            <div class="form-group">
+                                {% for message in messages %}
+                                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-warning btn-block">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+                <!-- /.card -->
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+    document.getElementById('add-schedule').addEventListener('click', function() {
+        let scheduleContainer = document.getElementById('schedule-container');
+        let newEntry = document.createElement('div');
+        newEntry.classList.add('schedule-entry', 'd-flex', 'gap-2', 'mb-2');
+        newEntry.innerHTML = `
+            <select class="form-control" name="day_of_week[]">
+                <option value="Monday">Monday</option>
+                <option value="Tuesday">Tuesday</option>
+                <option value="Wednesday">Wednesday</option>
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+                <option value="Saturday">Saturday</option>
+                <option value="Sunday">Sunday</option>
+            </select>
+            <input type="time" class="form-control" name="start_time[]" required>
+            <input type="time" class="form-control" name="end_time[]" required>
+            <button type="button" class="btn btn-danger remove-schedule">Remove</button>
+        `;
+        scheduleContainer.appendChild(newEntry);
+    });
+
+    document.addEventListener('click', function(event) {
+        if (event.target.classList.contains('remove-schedule')) {
+            event.target.parentElement.remove();
+        }
+    });
+</script>
+
+{% endblock main_content %}

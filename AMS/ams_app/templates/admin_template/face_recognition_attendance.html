@@ -1,0 +1,181 @@
+{% extends 'admin_template/base_template.html' %}
+
+{% block page_title %}
+Live Attendance System
+{% endblock page_title %}
+
+{% block main_content %}
+<div class="container text-center">
+    <h2>📡 Live Attendance System</h2>
+    
+    <h4 id="subject_info" class="text-danger">⏳ Checking for ongoing class...</h4>
+    <p id="attendance_status" class="text-info">🔄 Waiting for face scan...</p>
+
+    <div class="video-container">
+        <video id="video" width="640" height="480" autoplay playsinline></video>
+        <button id="fullscreenBtn" class="btn btn-secondary">🔍 Fullscreen</button>
+    </div>
+
+    <canvas id="canvas" width="1280" height="720" hidden></canvas>
+</div>
+
+<style>
+    .video-container {
+        position: relative;
+        display: inline-block;
+    }
+    #fullscreenBtn {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        cursor: pointer;
+    }
+</style>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const attendanceStatus = document.getElementById('attendance_status');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const subjectInfo = document.getElementById('subject_info');
+
+    let subjectId = null;
+    let isProcessing = false;
+    let interval;
+    let isFullscreen = false;
+
+    // ✅ Start Camera (High-Resolution) with Error Handling
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+            video.srcObject = stream;
+        } catch (err) {
+            console.error("⚠️ Camera Access Error:", err);
+            attendanceStatus.innerText = "❌ Please allow camera access.";
+        }
+    }
+    startCamera();
+
+    // ✅ Fullscreen Toggle
+    fullscreenBtn.addEventListener("click", () => {
+        if (!isFullscreen) {
+            if (video.requestFullscreen) {
+                video.requestFullscreen();
+            } else if (video.mozRequestFullScreen) { // Firefox
+                video.mozRequestFullScreen();
+            } else if (video.webkitRequestFullscreen) { // Chrome, Safari, and Opera
+                video.webkitRequestFullscreen();
+            } else if (video.msRequestFullscreen) { // IE/Edge
+                video.msRequestFullscreen();
+            }
+            fullscreenBtn.innerText = "🔙 Exit Fullscreen";
+        } else {
+            document.exitFullscreen();
+            fullscreenBtn.innerText = "🔍 Fullscreen";
+        }
+        isFullscreen = !isFullscreen;
+    });
+
+        function checkOngoingClass() {
+        subjectInfo.innerText = "🔄 Checking for ongoing class...";
+
+        fetch("/get_ongoing_subject/")
+            .then(response => response.json())
+            .then(data => {
+                console.log("📡 DEBUG: API Response", data);
+
+                if (data.subject_id) {
+                    if (subjectId !== data.subject_id) {
+                        subjectId = data.subject_id;
+                        subjectInfo.innerText = `📚 Ongoing Class: ${data.subject_name}`;
+                        attendanceStatus.innerText = "🔄 Scanning for faces...";
+                        startFaceRecognition();
+
+                        // ✅ Schedule next check when the class ends
+                        const endTime = new Date();
+                        const [hours, minutes, seconds] = data.end_time.split(":").map(Number);
+                        endTime.setHours(hours, minutes, seconds);
+
+                        const now = new Date();
+                        const timeUntilNextCheck = endTime - now;
+
+                        if (timeUntilNextCheck > 0) {
+                            console.log(`✅ Next check scheduled in ${timeUntilNextCheck / 1000} seconds`);
+                            setTimeout(checkOngoingClass, timeUntilNextCheck);
+                        }
+                    }
+                } 
+                else {
+                    subjectInfo.innerText = "❌ No ongoing class.";
+                    attendanceStatus.innerText = "⚠️ No active class. Waiting...";
+                    subjectId = null;
+                    clearInterval(interval);
+
+                    // ✅ Check again every 10 seconds only if there's no active class
+                    setTimeout(checkOngoingClass, 10000);
+                }
+            })
+            .catch(error => {
+                console.error("❌ Error fetching schedule:", error);
+                subjectInfo.innerText = "⚠️ Error fetching schedule.";
+                setTimeout(checkOngoingClass, 10000); // Retry after 10 seconds if there's an error
+            });
+    }
+
+    // ✅ Run check initially
+    checkOngoingClass();
+
+
+
+    // ✅ Get CSRF Token
+    function getCSRFToken() {
+        const csrfToken = document.cookie.match(/csrftoken=([^;]+)/);
+        return csrfToken ? csrfToken[1] : "";
+    }
+
+    // ✅ Start Face Recognition
+    function startFaceRecognition() {
+        if (interval) clearInterval(interval);
+
+        interval = setInterval(() => {
+            if (isProcessing || !subjectId) return;
+            isProcessing = true;
+            attendanceStatus.innerText = "🔄 Scanning for faces...";
+
+            const context = canvas.getContext("2d");
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append("image", blob);
+                formData.append("subject_id", subjectId);
+
+                fetch('/auto_mark_attendance_live/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCSRFToken() },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        attendanceStatus.innerText = `✅ Attendance Marked for ${data.student_name} (${data.status})`;
+                    } else {
+                        attendanceStatus.innerText = `❌ ${data.error || "Attendance Failed"}`;
+                    }
+                })
+                .catch(error => {
+                    console.error("❌ Attendance Error:", error);
+                    attendanceStatus.innerText = "⚠️ Error marking attendance.";
+                })
+                .finally(() => {
+                    isProcessing = false;
+                });
+            }, "image/png");
+        }, 5000);
+    }
+</script>
+{% endblock main_content %}
