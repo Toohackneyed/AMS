@@ -145,7 +145,14 @@
             {% url 'face_recognition_attendance' as face_recognition_attendance %}
             <a href="{% url 'face_recognition_attendance' %}" class="nav-link {% if request.path == face_recognition_attendance %} active {% endif %}"style="transition: 0.3s ease;">
               <i class="nav-icon fas fa-camera"style="color: #00d4ff;"></i>
-              <p>Face Recognition Attendance</p>
+              <p>Face Recognition</p>
+            </a>
+          </li>
+          <li class="nav-item">
+            {% url 'rfid_attendance' as rfid_attendance %}
+            <a href="{% url 'rfid_attendance' %}" class="nav-link {% if request.path == rfid_attendance %} active {% endif %}"style="transition: 0.3s ease;">
+              <i class="nav-icon fas fa-scan"style="color: #00d4ff;"></i>
+              <p>RFID</p>
             </a>
           </li>
                 

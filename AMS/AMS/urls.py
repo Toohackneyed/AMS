@@ -72,10 +72,10 @@ urlpatterns = [
     path("get_sections_by_session_year/", adminviews.get_sections_by_session_year, name="get_sections_by_session_year"),
     path("download_attendance/", adminviews.download_attendance, name="download_attendance"),
     path("get_ongoing_subject/", adminviews.get_ongoing_subject, name="get_ongoing_subject"),
-    path("read_rfid/", adminviews.read_rfid, name="read_rfid"),
-
-
-
+    path('rfid_attendance/', adminviews.rfid_attendance, name='rfid_attendance'),
+    path('api/rfid_tags/', adminviews.read_rfid_tag, name='get_rfid_tags'),
+    path('rfid-attendance/', adminviews.rfid_attendance, name='rfid_attendance'),
+    path('api/rfid_username/', adminviews.get_rfid_username, name='get_rfid_username'),
 
                   #     Staff URL Path
     path('staff_home/', staffviews.staff_home, name="staff_home"),

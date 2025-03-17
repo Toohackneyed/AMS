@@ -21,7 +21,8 @@ import json
 from django.utils.timezone import now, localtime, make_aware
 import base64
 import io
-from django.db import transaction
+from django.db import transaction   
+import threading
 from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
@@ -30,6 +31,10 @@ from django.core.cache import cache
 import serial
 from datetime import datetime, timedelta
 from django.utils.timezone import now
+import serial
+import time
+import serial.tools.list_ports
+import re
 
 #rfid reader
 
@@ -809,8 +814,7 @@ def face_recognition_attendance(request):
 
 @csrf_exempt
 def auto_mark_attendance_live(request):
-
-    print("\n\U0001F50D DEBUG: Request received!")
+    print("\n🔍 DEBUG: Request received!")
 
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
@@ -820,7 +824,7 @@ def auto_mark_attendance_live(request):
 
     if not subject_id or subject_id == "undefined":
         return JsonResponse({"error": "Invalid subject ID"}, status=400)
-    
+
     if not image:
         return JsonResponse({"error": "Missing image"}, status=400)
 
@@ -835,41 +839,14 @@ def auto_mark_attendance_live(request):
         else:
             return JsonResponse({"error": "No session year found"}, status=400)
 
-        print(f"✅ DEBUG: Found session year -> {session_year}")
-        print(f"✅ DEBUG: Subject found -> {actual_subject.subject_name}")
-
-    except (ValueError, SubjectSchedule.DoesNotExist):
-        return JsonResponse({"error": "Subject not found"}, status=404)
-
-    # ✅ **Check kung tapos na ang subject at hindi pa nade-delete ang attendance records**
-    current_time = now().time()
-    if current_time > subject_schedule.end_time and not subject_schedule.attendance_deleted:
-        print(f"🗑️ DEBUG: {actual_subject.subject_name} has ended. Deleting attendance records...")
-
-        # Delete attendance records for this subject
-        AttendanceReport.objects.filter(attendance__subject=actual_subject).delete()
-        Attendance.objects.filter(subject=actual_subject).delete()
-
-        # ✅ **Mark subject as "attendance deleted"**
-        subject_schedule.attendance_deleted = True
-        subject_schedule.save(update_fields=["attendance_deleted"])
-
-        return JsonResponse({
-            "message": f"🗑️ All attendance records for {actual_subject.subject_name} have been deleted."
-        }, status=200)
-
-    try:
         image_data = np.frombuffer(image.read(), np.uint8)
         img = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
 
         if img is None:
             return JsonResponse({"error": "Invalid image format"}, status=400)
 
-        # Optimize Image Resolution
-        img = cv2.resize(img, (320, 240))  # Lower resolution for faster processing
+        img = cv2.resize(img, (320, 240))
         rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-        # Use 'hog' instead of 'cnn' for faster face detection
         face_locations = face_recognition.face_locations(rgb_img, model='hog')
         face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
 
@@ -877,65 +854,57 @@ def auto_mark_attendance_live(request):
             return JsonResponse({"error": "No face detected"}, status=400)
 
         students = Students.objects.exclude(face_encoding=None)
-        print(f"✅ DEBUG: Checking {students.count()} students for a match")
-
-        # Batch encodings from database (preloaded or cached for faster access)
         known_encodings = [np.array(json.loads(student.face_encoding)) for student in students]
         known_names = [student.admin.get_full_name() for student in students]
 
-        matched_students = []
-
         for uploaded_encoding in face_encodings:
-            # Batch comparison to speed up
             matches = face_recognition.compare_faces(known_encodings, uploaded_encoding)
             if True in matches:
                 matched_index = matches.index(True)
-                matched_name = known_names[matched_index]
-                status = "absent"
-                grace_period = datetime.combine(date.today(), subject_schedule.start_time) + timedelta(minutes=15)
+                matched_student = students[matched_index]
+                matched_name = matched_student.admin.get_full_name()
+                stored_rfid = matched_student.rfid
 
-                if datetime.combine(date.today(), current_time) <= grace_period:
-                    status = "present"
-                else:
-                    status = "late"
+                print(f"🔑 DEBUG: Face recognized for {matched_name} with RFID {stored_rfid}")
 
+                # RFID Verification
                 try:
-                    attendance, _ = Attendance.objects.get_or_create(
-                        subject=actual_subject,
-                        schedule=subject_schedule,
-                        session_year=session_year,
-                        attendance_date=date.today()
-                    )
+                    with open("rfid_tags.txt", "r") as file:
+                        tags = file.read().splitlines()
 
-                    existing_attendance = AttendanceReport.objects.filter(
-                        student=students[matched_index],
-                        attendance=attendance
-                    ).exists()
-
-                    if not existing_attendance:
-                        AttendanceReport.objects.create(
-                            student=students[matched_index],
-                            attendance=attendance,
-                            status=status
+                    if stored_rfid in tags:
+                        attendance, _ = Attendance.objects.get_or_create(
+                            subject=actual_subject,
+                            schedule=subject_schedule,
+                            session_year=session_year,
+                            attendance_date=date.today()
                         )
-                        print(f"✅ SUCCESS: {matched_name} marked as {status}")
-                        matched_students.append({"student_name": matched_name, "status": status})
+
+                        AttendanceReport.objects.get_or_create(
+                            student=matched_student,
+                            attendance=attendance,
+                            status="present"
+                        )
+
+                        print(f"✅ SUCCESS: Attendance marked for {matched_name} ({stored_rfid})")
+                        return JsonResponse({
+                            "message": f"Attendance recorded for {matched_name}.",
+                            "rfid": stored_rfid
+                        })
+                    else:
+                        print(f"❌ ERROR: RFID mismatch for {matched_name}")
+                        return JsonResponse({"error": "RFID mismatch"}, status=400)
 
                 except Exception as e:
-                    print(f"⚡ ERROR: Exception processing attendance -> {e}")
-                    return JsonResponse({"error": "Error marking attendance"}, status=500)
+                    print(f"⚠️ ERROR: RFID verification failed -> {e}")
+                    return JsonResponse({"error": "RFID verification failed"}, status=500)
 
-        if matched_students:
-            return JsonResponse({
-                "matched_students": matched_students,
-                "message": "✅ Attendance recorded successfully."
-            })
-        else:
-            return JsonResponse({"error": "No matching student found or already recorded"}, status=404)
+        return JsonResponse({"error": "No matching student found"}, status=404)
 
     except Exception as e:
         print(f"⚡ ERROR: Exception processing image -> {e}")
         return JsonResponse({"error": "Error processing image"}, status=500)
+
 
 def get_ongoing_subject(request):   
     """Fetch currently ongoing class. Search for a new class only when the ongoing class ends."""
@@ -982,55 +951,7 @@ def get_ongoing_subject(request):
     print("🚨 ERROR: No ongoing or upcoming class found!")
     return JsonResponse({"error": "No ongoing class at the moment."}, status=404)
 
-def read_rfid(request):
-    if request.method == "POST":
-        try:
-            # I-print ang raw POST data para sa debugging
-            print(f"📡 Raw POST Data (as bytes): {request.body}")
-
-            # Subukan kunin mula sa POST form data
-            rfid_data = request.POST.get("rfid")
-            print(f"📡 Received RFID data (POST): {rfid_data}")
-
-            # Kung walang nakuha, subukan i-parse bilang JSON
-            if not rfid_data:
-                try:
-                    data = json.loads(request.body.decode('utf-8'))
-                    rfid_data = data.get("rfid")
-                    print(f"📡 Received RFID data (JSON): {rfid_data}")
-                except json.JSONDecodeError as e:
-                    print(f"❌ JSON Parsing Error: {str(e)}")
-                    return JsonResponse({"status": "error", "message": "Invalid JSON format."})
-
-            # Siguruhin na may laman ang rfid_data
-            if not rfid_data:
-                print("❌ Walang nareceive na RFID data")
-                return JsonResponse({"status": "error", "message": "No RFID data received."})
-
-            # Hanapin ang estudyante sa database gamit ang RFID
-            try:
-                student = Students.objects.get(rfid=rfid_data)
-                full_name = f"{student.first_name} {student.last_name}"
-                print(f"✅ Student Found: {full_name}")
-                return JsonResponse({"status": "success", "full_name": full_name})
-            except Students.DoesNotExist:
-                print(f"❌ Walang estudyanteng nakarehistro sa RFID: {rfid_data}")
-                return JsonResponse({"status": "error", "message": "RFID not registered."})
-
-        except Exception as e:
-            print(f"❗ Error: {str(e)}")
-            return JsonResponse({"status": "error", "message": str(e)})
-
-    else:
-        print("❌ Invalid request method")
-        return JsonResponse({"status": "error", "message": "Invalid request method."})
-import serial
-import time
-import serial.tools.list_ports
-import re
-import requests
-
-SERVER_URL = "https://192.168.0.50:8000/read_rfid/"  # Palitan ng tamang server URL
+#RFID Attendance----------------------------------------------------------------------------------------------------------------------------------------
 
 def find_ch340_port():
     """Find the COM port assigned to USB-SERIAL CH340 (RFID Reader)."""
@@ -1047,20 +968,17 @@ def clean_rfid_data(data):
     clean_data = re.sub(r'[^\d]', '', data)  # Keep only numbers
     return clean_data
 
-def send_rfid_to_server(rfid):
-    """Magpadala ng RFID tag sa server via POST request."""
+def is_tag_in_file(tag):
+    """Check if the tag already exists in the file."""
     try:
-        headers = {
-            'Content-Type': 'application/json',  # Use JSON format
-        }
-        payload = {'rfid': rfid}  # Prepare payload
-        response = requests.post(SERVER_URL, json=payload, headers=headers, verify=False)  # Ignore SSL for local testing
-        print(f"📡 Server Response: {response.status_code} - {response.text}")
-    except requests.RequestException as e:
-        print(f"❗ Failed to send data to server: {e}")
+        with open("rfid_tags.txt", "r") as file:
+            tags = file.read().splitlines()
+            return tag in tags
+    except FileNotFoundError:
+        return False
 
 def read_rfid_tag(port):
-    """Read RFID tags from the detected CH340 port."""
+    """Read RFID tags from the detected CH340 port and append unique tags to the file."""
     try:
         rfid_reader = serial.Serial(port, 9600, timeout=1)
         print(f"📡 Listening for RFID tags on {port}...")
@@ -1074,18 +992,61 @@ def read_rfid_tag(port):
                 print(f"🧹 Cleaned Data: '{tag}'")  # Print cleaned data
 
                 if tag:
-                    print(f"🏷️ Sending Tag to Server: {tag}")
-                    send_rfid_to_server(tag)
+                    if not is_tag_in_file(tag):
+                        print(f"🏷️ New Unique Tag Detected: {tag}")
+
+                        # Save the detected tag to the file (append mode)
+                        with open("rfid_tags.txt", "a") as file:
+                            file.write(f"{tag}\n")
+                            file.flush()
+                    else:
+                        print(f"🔁 Duplicate Tag Skipped: {tag}")
 
     except serial.SerialException as e:
         print(f"⚠️ Serial Error: {e}")
     except KeyboardInterrupt:
         print("\n🔌 RFID Reader disconnected.")
 
-if __name__ == "__main__":
-    com_port = find_ch340_port()
-    if com_port:
-        print(f"✅ Successfully connected to RFID reader on {com_port}.")
-        read_rfid_tag(com_port)
-    else:
-        print("❌ No RFID reader found. Please check the connection and try again.")
+def scan_for_reader():
+    """Keep scanning for the RFID reader every 5 seconds if not found."""
+    while True:
+        com_port = find_ch340_port()
+        if com_port:
+            read_rfid_tag(com_port)
+        else:
+            print("🔄 Rescanning for RFID reader in 5 seconds...")
+            time.sleep(5)
+
+# 📝 Django Views
+def rfid_attendance(request):
+    """Render the RFID Attendance page."""
+    return render(request, "admin_template/rfid_attendance_template.html")
+
+def get_rfid_username(request):
+    """Fetch the username associated with the latest detected RFID tag."""
+    try:
+        with open("rfid_tags.txt", "r") as file:
+            lines = file.readlines()
+            detected_rfid = lines[-1].strip() if lines else "N/A"  # Get the last detected tag
+
+        if detected_rfid and detected_rfid != "N/A":
+            # Find the student by RFID tag
+            student = Students.objects.filter(rfid=detected_rfid).select_related("admin").first()
+            if student:
+                return JsonResponse({"username": student.admin.username, "rfid": student.rfid})
+            else:
+                return JsonResponse({"username": "Unknown", "rfid": detected_rfid})
+
+        return JsonResponse({"username": "No Tag", "rfid": "N/A"})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+# 🚀 Start RFID Reader in the Background
+def start_rfid_reader():
+    thread = threading.Thread(target=scan_for_reader)
+    thread.daemon = True  # Run in the background
+    thread.start()
+
+# Start the RFID reader when the server starts
+start_rfid_reader()
