@@ -1,28 +1,41 @@
 {% extends 'admin_template/base_template.html' %}
 
 {% block page_title %}
-Live Attendance System
 {% endblock page_title %}
 
 {% block main_content %}
-<div class="container text-center">
-    <h2>📡 Live Attendance System</h2>
-    
-    <h4 id="subject_info" class="text-danger">⏳ Checking for ongoing class...</h4>
-    <p id="attendance_status" class="text-info">🔄 Waiting for face scan...</p>
+<div class="container-fluid">
+    <div class="row">
+        <!-- Fixed Message -->
+        <div class="col-12 text-center mb-3">
+            <h3 id="fixedMessage">⏳ Checking ongoing class...</h3>
+        </div>
 
-    <div class="video-container">
-        <video id="video" width="640" height="480" autoplay playsinline></video>
-        <button id="fullscreenBtn" class="btn btn-secondary">🔍 Fullscreen</button>
+        <!-- Camera Feed (Left) -->
+        <div class="col-md-7 text-center">
+            <div class="video-container">
+                <video id="video" width="900" height="650" autoplay playsinline></video>
+                <button id="fullscreenBtn" class="btn btn-secondary">🔍 Fullscreen</button>
+            </div>
+            <canvas id="canvas" width="1280" height="720" hidden></canvas>
+            <p id="result" class="mt-3 text-info">⏳ Waiting for attendance...</p>
+        </div>
+
+        <!-- Attendance Log (Right) -->
+        <div  id="attendanceLog"  class="col-md-5", style="overflow-y: auto;">
+            <h3 id="title">📝 Attendance Log</h3>
+            <ul class="list-group">
+                <li class="list-group-item">No attendance recorded yet.</li>
+            </ul>
+        </div>
     </div>
-
-    <canvas id="canvas" width="1280" height="720" hidden></canvas>
 </div>
 
 <style>
     .video-container {
         position: relative;
         display: inline-block;
+        margin: 10px;
     }
     #fullscreenBtn {
         position: absolute;
@@ -34,44 +47,54 @@ Live Attendance System
         padding: 5px 10px;
         cursor: pointer;
     }
+    #attendanceLog {
+        max-height: 510px;
+        max-width: 650px;
+        overflow-y: auto;
+        border: 2px solid #007bff;
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 80px;
+    }
+    .list-group-item {
+        margin: 2px 0;
+    }
+    #title {
+        margin-top: 0;
+        padding: 5px;
+        border-radius: 5px;
+        background-color: #007bff;
+        color: white;
+    }
 </style>
+
 
 <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
-    const attendanceStatus = document.getElementById('attendance_status');
+    const result = document.getElementById('result');
+    const attendanceLog = document.getElementById('attendanceLog');
+    const fixedMessage = document.getElementById('fixedMessage');
     const fullscreenBtn = document.getElementById('fullscreenBtn');
-    const subjectInfo = document.getElementById('subject_info');
-
     let subjectId = null;
     let isProcessing = false;
     let interval;
     let isFullscreen = false;
 
-    // ✅ Start Camera (High-Resolution) with Error Handling
     async function startCamera() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
             video.srcObject = stream;
         } catch (err) {
-            console.error("⚠️ Camera Access Error:", err);
-            attendanceStatus.innerText = "❌ Please allow camera access.";
+            console.error("Error accessing camera:", err);
+            result.innerText = "⚠️ Please allow camera permissions.";
         }
     }
     startCamera();
 
-    // ✅ Fullscreen Toggle
     fullscreenBtn.addEventListener("click", () => {
         if (!isFullscreen) {
-            if (video.requestFullscreen) {
-                video.requestFullscreen();
-            } else if (video.mozRequestFullScreen) { // Firefox
-                video.mozRequestFullScreen();
-            } else if (video.webkitRequestFullscreen) { // Chrome, Safari, and Opera
-                video.webkitRequestFullscreen();
-            } else if (video.msRequestFullscreen) { // IE/Edge
-                video.msRequestFullscreen();
-            }
+            video.requestFullscreen();
             fullscreenBtn.innerText = "🔙 Exit Fullscreen";
         } else {
             document.exitFullscreen();
@@ -80,71 +103,41 @@ Live Attendance System
         isFullscreen = !isFullscreen;
     });
 
-        function checkOngoingClass() {
-        subjectInfo.innerText = "🔄 Checking for ongoing class...";
+    function addToAttendanceLog(studentName, status) {
+        const newItem = document.createElement("li");
+        newItem.classList.add("list-group-item");
+        newItem.innerText = `${studentName} - ${status}`;
+        attendanceLog.prepend(newItem);
 
+        if (attendanceLog.childElementCount > 5) {
+            attendanceLog.removeChild(attendanceLog.lastChild);
+        }
+    }
+
+    function checkOngoingClass() {
         fetch("/get_ongoing_subject/")
             .then(response => response.json())
             .then(data => {
-                console.log("📡 DEBUG: API Response", data);
-
                 if (data.subject_id) {
-                    if (subjectId !== data.subject_id) {
-                        subjectId = data.subject_id;
-                        subjectInfo.innerText = `📚 Ongoing Class: ${data.subject_name}`;
-                        attendanceStatus.innerText = "🔄 Scanning for faces...";
-                        startFaceRecognition();
-
-                        // ✅ Schedule next check when the class ends
-                        const endTime = new Date();
-                        const [hours, minutes, seconds] = data.end_time.split(":").map(Number);
-                        endTime.setHours(hours, minutes, seconds);
-
-                        const now = new Date();
-                        const timeUntilNextCheck = endTime - now;
-
-                        if (timeUntilNextCheck > 0) {
-                            console.log(`✅ Next check scheduled in ${timeUntilNextCheck / 1000} seconds`);
-                            setTimeout(checkOngoingClass, timeUntilNextCheck);
-                        }
-                    }
-                } 
-                else {
-                    subjectInfo.innerText = "❌ No ongoing class.";
-                    attendanceStatus.innerText = "⚠️ No active class. Waiting...";
-                    subjectId = null;
-                    clearInterval(interval);
-
-                    // ✅ Check again every 10 seconds only if there's no active class
-                    setTimeout(checkOngoingClass, 10000);
+                    subjectId = data.subject_id;
+                    fixedMessage.innerText = `📚 Ongoing Class: ${data.subject_name}`;
+                    startFaceRecognition();
+                } else {
+                    fixedMessage.innerText = "❌ No ongoing class.";
                 }
             })
             .catch(error => {
-                console.error("❌ Error fetching schedule:", error);
-                subjectInfo.innerText = "⚠️ Error fetching schedule.";
-                setTimeout(checkOngoingClass, 10000); // Retry after 10 seconds if there's an error
+                console.error("Error checking schedule:", error);
+                fixedMessage.innerText = "⚠️ Error fetching schedule.";
             });
     }
+    setInterval(checkOngoingClass, 3000);
 
-    // ✅ Run check initially
-    checkOngoingClass();
-
-
-
-    // ✅ Get CSRF Token
-    function getCSRFToken() {
-        const csrfToken = document.cookie.match(/csrftoken=([^;]+)/);
-        return csrfToken ? csrfToken[1] : "";
-    }
-
-    // ✅ Start Face Recognition
     function startFaceRecognition() {
         if (interval) clearInterval(interval);
-
         interval = setInterval(() => {
             if (isProcessing || !subjectId) return;
             isProcessing = true;
-            attendanceStatus.innerText = "🔄 Scanning for faces...";
 
             const context = canvas.getContext("2d");
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -156,26 +149,27 @@ Live Attendance System
 
                 fetch('/auto_mark_attendance_live/', {
                     method: 'POST',
-                    headers: { 'X-CSRFToken': getCSRFToken() },
                     body: formData
                 })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) {
-                        attendanceStatus.innerText = `✅ Attendance Marked for ${data.student_name} (${data.status})`;
+                    if (data.matched_students) {
+                        data.matched_students.forEach(student => {
+                            addToAttendanceLog(student.student_name, student.status);
+                        });
                     } else {
-                        attendanceStatus.innerText = `❌ ${data.error || "Attendance Failed"}`;
+                        result.innerText = `❌ ${data.error || "Attendance failed"}`;
                     }
                 })
                 .catch(error => {
-                    console.error("❌ Attendance Error:", error);
-                    attendanceStatus.innerText = "⚠️ Error marking attendance.";
+                    console.error("Error marking attendance:", error);
+                    result.innerText = "⚠️ Error marking attendance.";
                 })
                 .finally(() => {
                     isProcessing = false;
                 });
             }, "image/png");
-        }, 5000);
+        }, 2000);
     }
 </script>
 {% endblock main_content %}

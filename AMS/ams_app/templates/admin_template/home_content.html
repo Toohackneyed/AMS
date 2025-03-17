@@ -63,6 +63,9 @@ $(document).ready(function(){
 
     var studentCount = {{ student_count|default:0 }};
     var staffCount = {{ staff_count|default:0 }};
+    if (studentCount === 0) {
+    console.warn("⚠️ Warning: No students data!");
+}
     
     console.log("🟢 DEBUG: Students =", studentCount);
     console.log("🟢 DEBUG: Staff =", staffCount);

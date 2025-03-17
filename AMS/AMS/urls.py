@@ -72,14 +72,14 @@ urlpatterns = [
     path("get_sections_by_session_year/", adminviews.get_sections_by_session_year, name="get_sections_by_session_year"),
     path("download_attendance/", adminviews.download_attendance, name="download_attendance"),
     path("get_ongoing_subject/", adminviews.get_ongoing_subject, name="get_ongoing_subject"),
-    # path("recognize_student/", adminviews.recognize_student, name="recognize_student"),
+    path("read_rfid/", adminviews.read_rfid, name="read_rfid"),
+
 
 
 
                   #     Staff URL Path
     path('staff_home/', staffviews.staff_home, name="staff_home"),
     path('staff_take_attendance/', staffviews.staff_take_attendance, name="staff_take_attendance"),
-    path('get_students', staffviews.get_students, name="get_students"),
     path('filter_attendance', staffviews.filter_attendance, name="filter_attendance"),
     path("staff_update_attendance", staffviews.staff_update_attendance, name="staff_update_attendance"),
     path('save_attendance_data', staffviews.save_attendance_data, name="save_attendance_data"),

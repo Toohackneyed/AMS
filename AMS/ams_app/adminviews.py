@@ -27,8 +27,12 @@ from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.cache import cache
+import serial
 from datetime import datetime, timedelta
 from django.utils.timezone import now
+
+#rfid reader
+
 
 from ams_app.models import CustomUser, SessionTimeModel, Staffs, Courses, Subjects,Sections, Students, SessionYearModel, SubjectSchedule, Attendance, AttendanceReport, Enrollment
 
@@ -57,7 +61,7 @@ def admin_home(request):
     student_count_list_in_subject = []
 
     for subject in Subjects.objects.all():
-        student_count = Enrollment.objects.filter(subject=subject).count()  # ✅ Tamang query
+        student_count = Students.objects.count()
         subject_list.append(subject.subject_name)
         student_count_list_in_subject.append(student_count)
 
@@ -74,8 +78,8 @@ def admin_home(request):
 
     context = {
         "dashboard_boxes": dashboard_boxes,
-        "student_count": student_count,
-        "staff_count": staff_count,
+        "student_count": student_count or 0,
+        "staff_count": staff_count or 0,
         "subject_count": subject_count,
         "course_count": course_count,
         "course_name_list": course_name_list,
@@ -84,6 +88,7 @@ def admin_home(request):
         "student_count_list_in_subject": student_count_list_in_subject,
         "subject_list": subject_list,
     }
+    print("🟢 DEBUG: Total Students Before Processing =", student_count)
 
     return render(request, "admin_template/home_content.html", context)
 
@@ -800,11 +805,13 @@ def face_recognition_attendance(request):
     """Render the Face Recognition Attendance page."""
     return render(request, "admin_template/face_recognition_attendance.html")
 
+#Face Recognition----------------------------------------------------------------------------------------------------------------------------------------
+
 @csrf_exempt
 def auto_mark_attendance_live(request):
-    """Handles automatic face recognition and marks attendance."""
-    print("\n🔍 DEBUG: Request received!")
-    
+
+    print("\n\U0001F50D DEBUG: Request received!")
+
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
@@ -834,75 +841,89 @@ def auto_mark_attendance_live(request):
     except (ValueError, SubjectSchedule.DoesNotExist):
         return JsonResponse({"error": "Subject not found"}, status=404)
 
+    # ✅ **Check kung tapos na ang subject at hindi pa nade-delete ang attendance records**
+    current_time = now().time()
+    if current_time > subject_schedule.end_time and not subject_schedule.attendance_deleted:
+        print(f"🗑️ DEBUG: {actual_subject.subject_name} has ended. Deleting attendance records...")
+
+        # Delete attendance records for this subject
+        AttendanceReport.objects.filter(attendance__subject=actual_subject).delete()
+        Attendance.objects.filter(subject=actual_subject).delete()
+
+        # ✅ **Mark subject as "attendance deleted"**
+        subject_schedule.attendance_deleted = True
+        subject_schedule.save(update_fields=["attendance_deleted"])
+
+        return JsonResponse({
+            "message": f"🗑️ All attendance records for {actual_subject.subject_name} have been deleted."
+        }, status=200)
+
     try:
-        # Convert image to numpy array
         image_data = np.frombuffer(image.read(), np.uint8)
         img = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
 
         if img is None:
             return JsonResponse({"error": "Invalid image format"}, status=400)
 
-        # Resize & Convert to RGB
-        img = cv2.resize(img, (640, 480))
+        # Optimize Image Resolution
+        img = cv2.resize(img, (320, 240))  # Lower resolution for faster processing
         rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        # Detect multiple faces
-        face_locations = face_recognition.face_locations(rgb_img, model='cnn')
+        # Use 'hog' instead of 'cnn' for faster face detection
+        face_locations = face_recognition.face_locations(rgb_img, model='hog')
         face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
 
         if not face_encodings:
             return JsonResponse({"error": "No face detected"}, status=400)
 
-        # Get students with stored face encodings
         students = Students.objects.exclude(face_encoding=None)
         print(f"✅ DEBUG: Checking {students.count()} students for a match")
 
+        # Batch encodings from database (preloaded or cached for faster access)
+        known_encodings = [np.array(json.loads(student.face_encoding)) for student in students]
+        known_names = [student.admin.get_full_name() for student in students]
+
         matched_students = []
 
-        for student in students:
-            stored_encoding_json = student.face_encoding
-            if isinstance(stored_encoding_json, str):
-                stored_encoding = np.array(json.loads(stored_encoding_json))
-            else:
-                stored_encoding = np.array(stored_encoding_json)
+        for uploaded_encoding in face_encodings:
+            # Batch comparison to speed up
+            matches = face_recognition.compare_faces(known_encodings, uploaded_encoding)
+            if True in matches:
+                matched_index = matches.index(True)
+                matched_name = known_names[matched_index]
+                status = "absent"
+                grace_period = datetime.combine(date.today(), subject_schedule.start_time) + timedelta(minutes=15)
 
-            if stored_encoding.shape[0] != 128:
-                continue  # Skip invalid encodings
+                if datetime.combine(date.today(), current_time) <= grace_period:
+                    status = "present"
+                else:
+                    status = "late"
 
-            for uploaded_encoding in face_encodings:  # Compare with all detected faces
-                matches = face_recognition.compare_faces([stored_encoding], uploaded_encoding)
+                try:
+                    attendance, _ = Attendance.objects.get_or_create(
+                        subject=actual_subject,
+                        schedule=subject_schedule,
+                        session_year=session_year,
+                        attendance_date=date.today()
+                    )
 
-                if matches[0]:  # If match is found
-                    current_time = now().astimezone().time()
-                    status = "absent"
+                    existing_attendance = AttendanceReport.objects.filter(
+                        student=students[matched_index],
+                        attendance=attendance
+                    ).exists()
 
-                    if subject_schedule.start_time <= current_time <= subject_schedule.end_time:
-                        status = "present" if current_time <= subject_schedule.start_time.replace(minute=subject_schedule.start_time.minute + 15) else "late"
-
-                    # Save attendance
-                    try:
-                        attendance, _ = Attendance.objects.get_or_create(
-                            subject=actual_subject,  
-                            schedule=subject_schedule,  
-                            session_year=session_year,
-                            attendance_date=date.today()
-                        )
-
-                        AttendanceReport.objects.update_or_create(
-                            student=student,
+                    if not existing_attendance:
+                        AttendanceReport.objects.create(
+                            student=students[matched_index],
                             attendance=attendance,
-                            defaults={"status": status}
+                            status=status
                         )
+                        print(f"✅ SUCCESS: {matched_name} marked as {status}")
+                        matched_students.append({"student_name": matched_name, "status": status})
 
-                        print(f"✅ SUCCESS: {student.admin.get_full_name()} marked as {status}")
-                        matched_students.append({
-                            "student_name": student.admin.get_full_name(),
-                            "status": status
-                        })
-
-                    except Exception as e:
-                        print(f"🚨 ERROR: Exception processing attendance -> {e}")
-                        return JsonResponse({"error": "Error marking attendance"}, status=500)
+                except Exception as e:
+                    print(f"⚡ ERROR: Exception processing attendance -> {e}")
+                    return JsonResponse({"error": "Error marking attendance"}, status=500)
 
         if matched_students:
             return JsonResponse({
@@ -910,10 +931,10 @@ def auto_mark_attendance_live(request):
                 "message": "✅ Attendance recorded successfully."
             })
         else:
-            return JsonResponse({"error": "No matching student found"}, status=404)
+            return JsonResponse({"error": "No matching student found or already recorded"}, status=404)
 
     except Exception as e:
-        print(f"🚨 ERROR: Exception processing image -> {e}")
+        print(f"⚡ ERROR: Exception processing image -> {e}")
         return JsonResponse({"error": "Error processing image"}, status=500)
 
 def get_ongoing_subject(request):   
@@ -960,3 +981,111 @@ def get_ongoing_subject(request):
 
     print("🚨 ERROR: No ongoing or upcoming class found!")
     return JsonResponse({"error": "No ongoing class at the moment."}, status=404)
+
+def read_rfid(request):
+    if request.method == "POST":
+        try:
+            # I-print ang raw POST data para sa debugging
+            print(f"📡 Raw POST Data (as bytes): {request.body}")
+
+            # Subukan kunin mula sa POST form data
+            rfid_data = request.POST.get("rfid")
+            print(f"📡 Received RFID data (POST): {rfid_data}")
+
+            # Kung walang nakuha, subukan i-parse bilang JSON
+            if not rfid_data:
+                try:
+                    data = json.loads(request.body.decode('utf-8'))
+                    rfid_data = data.get("rfid")
+                    print(f"📡 Received RFID data (JSON): {rfid_data}")
+                except json.JSONDecodeError as e:
+                    print(f"❌ JSON Parsing Error: {str(e)}")
+                    return JsonResponse({"status": "error", "message": "Invalid JSON format."})
+
+            # Siguruhin na may laman ang rfid_data
+            if not rfid_data:
+                print("❌ Walang nareceive na RFID data")
+                return JsonResponse({"status": "error", "message": "No RFID data received."})
+
+            # Hanapin ang estudyante sa database gamit ang RFID
+            try:
+                student = Students.objects.get(rfid=rfid_data)
+                full_name = f"{student.first_name} {student.last_name}"
+                print(f"✅ Student Found: {full_name}")
+                return JsonResponse({"status": "success", "full_name": full_name})
+            except Students.DoesNotExist:
+                print(f"❌ Walang estudyanteng nakarehistro sa RFID: {rfid_data}")
+                return JsonResponse({"status": "error", "message": "RFID not registered."})
+
+        except Exception as e:
+            print(f"❗ Error: {str(e)}")
+            return JsonResponse({"status": "error", "message": str(e)})
+
+    else:
+        print("❌ Invalid request method")
+        return JsonResponse({"status": "error", "message": "Invalid request method."})
+import serial
+import time
+import serial.tools.list_ports
+import re
+import requests
+
+SERVER_URL = "https://192.168.0.50:8000/read_rfid/"  # Palitan ng tamang server URL
+
+def find_ch340_port():
+    """Find the COM port assigned to USB-SERIAL CH340 (RFID Reader)."""
+    ports = serial.tools.list_ports.comports()
+    for port in ports:
+        if "CH340" in port.description:
+            print(f"✅ Found CH340 RFID Reader on {port.device}")
+            return port.device
+    print("❌ CH340 RFID Reader not found! Please check the connection.")
+    return None
+
+def clean_rfid_data(data):
+    """Remove unexpected characters and extract the numeric RFID tag."""
+    clean_data = re.sub(r'[^\d]', '', data)  # Keep only numbers
+    return clean_data
+
+def send_rfid_to_server(rfid):
+    """Magpadala ng RFID tag sa server via POST request."""
+    try:
+        headers = {
+            'Content-Type': 'application/json',  # Use JSON format
+        }
+        payload = {'rfid': rfid}  # Prepare payload
+        response = requests.post(SERVER_URL, json=payload, headers=headers, verify=False)  # Ignore SSL for local testing
+        print(f"📡 Server Response: {response.status_code} - {response.text}")
+    except requests.RequestException as e:
+        print(f"❗ Failed to send data to server: {e}")
+
+def read_rfid_tag(port):
+    """Read RFID tags from the detected CH340 port."""
+    try:
+        rfid_reader = serial.Serial(port, 9600, timeout=1)
+        print(f"📡 Listening for RFID tags on {port}...")
+
+        while True:
+            if rfid_reader.in_waiting > 0:
+                raw_data = rfid_reader.readline().decode('utf-8', errors='ignore').strip()
+                print(f"🔍 Raw Data: '{raw_data}'")  # Print raw data for debugging
+
+                tag = clean_rfid_data(raw_data)  # Clean the data to extract the RFID tag
+                print(f"🧹 Cleaned Data: '{tag}'")  # Print cleaned data
+
+                if tag:
+                    print(f"🏷️ Sending Tag to Server: {tag}")
+                    send_rfid_to_server(tag)
+
+    except serial.SerialException as e:
+        print(f"⚠️ Serial Error: {e}")
+    except KeyboardInterrupt:
+        print("\n🔌 RFID Reader disconnected.")
+
+if __name__ == "__main__":
+    com_port = find_ch340_port()
+    if com_port:
+        print(f"✅ Successfully connected to RFID reader on {com_port}.")
+        read_rfid_tag(com_port)
+    else:
+        print("❌ No RFID reader found. Please check the connection and try again.")
