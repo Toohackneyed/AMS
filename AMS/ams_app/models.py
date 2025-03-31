@@ -188,7 +188,7 @@ class Attendance(models.Model):
 
 class AttendanceReport(models.Model):
     STATUS_CHOICES = [
-        ("Present", "Present"),
+        ("Present", "Present"), 
         ("Late", "Late"),
         ("Absent", "Absent"),
     ]

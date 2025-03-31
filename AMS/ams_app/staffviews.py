@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, timedelta
 from uuid import uuid4
+import openpyxl
+from openpyxl.styles import Font
 
 from django.contrib import messages
 from django.core import serializers
@@ -12,7 +14,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 
 from ams_app.models import SubjectSchedule, Subjects, SessionYearModel, Students, Attendance, AttendanceReport, \
-     Staffs, CustomUser, Courses
+     Staffs, CustomUser, Courses, Sections
 
 
 @login_required
@@ -62,133 +64,131 @@ def staff_home(request):
 
     return render(request, "staff_template/staff_home_template.html", context)
 
+@login_required
 def staff_take_attendance(request):
+    """ Display attendance filtering options for staff """
     subjects = Subjects.objects.all()
     schedules = SubjectSchedule.objects.all()
-    session_years = SessionYearModel.objects.all()  
+    session_years = SessionYearModel.objects.all()
+    sections = Sections.objects.all()
 
-    return render(request, "staff_template/staff_take_attendance.html", {
-        "subjects": subjects,
-        "schedules": schedules,
-        "session_years": session_years,
-    })
+    context = {
+        'subjects': subjects,
+        'schedules': schedules,
+        'session_years': session_years,
+        'sections': sections
+    }
+    return render(request, "staff_template/staff_take_attendance.html", context)
+
+@csrf_exempt
+def get_sections_by_session_year(request):
+    """ Fetch sections based on selected session year """
+    if request.method == 'POST':
+        session_year_id = request.POST.get('session_year')
+        sections = Sections.objects.filter(session_year_id=session_year_id)
+        section_data = [{"id": section.id, "name": section.section_name} for section in sections]
+        return JsonResponse(section_data, safe=False)
+    return JsonResponse({'error': 'Invalid request'}, status=400)
 
 @csrf_exempt
 def get_students(request):
-    if request.method == "POST":
-        subject_id = request.POST.get("subject")
-        session_year_id = request.POST.get("session_year")
-        schedule_id = request.POST.get("schedule")
-        all_schedules = request.POST.get("all_schedules")
-        start_date = request.POST.get("start_date")
-        end_date = request.POST.get("end_date")
+    try:
+        subject_id = request.POST.get('subject')
+        session_year_id = request.POST.get('session_year')
+        schedule_id = request.POST.get('schedule')
+        section_id = request.POST.get('section')
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date')
+        get_all_schedules = request.POST.get('get_all_schedules') == 'true'
 
-        try:
-            subject = Subjects.objects.get(id=subject_id)
-            students = Students.objects.filter(course_id=subject.course_id, session_year_id=session_year_id)
+        if not subject_id or not session_year_id or not start_date or not end_date:
+            return JsonResponse({'error': 'Missing required parameters'}, status=400)
 
-            # ✅ Gamitin ang tamang field sa Attendance filtering
-            attendance_records = Attendance.objects.filter(
-                subject_id=subject_id,  # Gamitin ang `subject_id`, hindi `subject`
-                attendance_date__range=[start_date, end_date]
-            )
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
 
-            list_data = []
-            for student in students:
-                list_data.append({
-                    "id": student.admin.id,
-                    "name": f"{student.admin.first_name} {student.admin.last_name}"
-                })
+        filters = {
+            'subject_id': int(subject_id),
+            'session_year_id': int(session_year_id),
+            'attendance_date__range': (start_date, end_date)
+        }
 
-            return JsonResponse(list_data, safe=False)
+        if not get_all_schedules and schedule_id:
+            filters['schedule_id'] = int(schedule_id)
 
-        except Subjects.DoesNotExist:
-            return JsonResponse({"error": "Subject not found"}, status=400)
-    return JsonResponse({"error": "Invalid request method"}, status=405)
+        if section_id:
+            filters['students__section_id'] = int(section_id)
 
-@csrf_exempt
-def save_attendance_data(request):
-    if request.method == "POST":
-        print("✅ Received POST request for saving attendance.")
+        attendance_records = Attendance.objects.filter(**filters)
 
-        student_data = json.loads(request.POST.get("student_ids"))
-        subject_id = request.POST.get("subject_id")
-        session_year_id = request.POST.get("session_year_id")
-        schedule_id = request.POST.get("schedule_id")
-        attendance_date = request.POST.get("start_date")  # Start date ang gagamitin
+        attendance_data = [
+            {
+                'student_name': report.student.admin.get_full_name(),
+                'date': report.attendance.attendance_date.strftime('%Y-%m-%d'),
+                'status': report.status.capitalize()
+            }
+            for report in AttendanceReport.objects.filter(attendance__in=attendance_records)
+        ]
 
-        print(f"📌 Data Received: subject_id={subject_id}, session_year_id={session_year_id}, schedule_id={schedule_id}, attendance_date={attendance_date}")
-        print("📌 Student Data:", student_data)
+        return JsonResponse(attendance_data, safe=False)
 
-        try:
-            subject = Subjects.objects.get(id=subject_id)
-            session_year = SessionYearModel.objects.get(id=session_year_id)
-            schedule = SubjectSchedule.objects.get(id=schedule_id)
+    except Exception as e:
+        print(f"Error in get_students: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
 
-            # ✅ CHECK: May existing attendance record na ba sa araw na ito?
-            attendance, created = Attendance.objects.get_or_create(
-                subject_id=subject,
-                schedule=schedule,
-                session_year_id=session_year,
-                attendance_date=attendance_date
-            )
+@login_required
+def download_attendance(request):
+    try:
+        subject_id = int(request.GET.get('subject'))
+        session_year_id = int(request.GET.get('session_year'))
+        schedule_id = request.GET.get('schedule')
+        section_id = request.GET.get('section')
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
 
-            for student in student_data:
-                student_instance = Students.objects.get(admin_id=student["id"])
-                
-                # ✅ SAVE sa AttendanceReport (Student Attendance)
-                AttendanceReport.objects.update_or_create(
-                    student=student_instance,
-                    attendance=attendance,
-                    defaults={"status": student["status"]}  # Update status kung meron na
-                )
+        attendance_filter = {
+            'subject_id': subject_id,
+            'session_year_id': session_year_id,
+            'attendance_date__range': (start_date, end_date)
+        }
 
-                print(f"📌 Attendance saved for: {student_instance.admin.first_name} {student_instance.admin.last_name} (Status: {student['status']})")
+        if section_id:
+            attendance_filter['students__section_id'] = int(section_id)
 
-            print("✅ Attendance saved successfully!")
-            return JsonResponse("OK", safe=False)
+        if schedule_id:
+            attendance_filter['schedule_id'] = int(schedule_id)
 
-        except Subjects.DoesNotExist:
-            print("❌ ERROR: Subject not found!")
-            return JsonResponse({"error": "Subject not found"}, status=400)
-        except Students.DoesNotExist:
-            print("❌ ERROR: Student not found!")
-            return JsonResponse({"error": "Student not found"}, status=400)
-        except SessionYearModel.DoesNotExist:
-            print("❌ ERROR: Session year not found!")
-            return JsonResponse({"error": "Session year not found"}, status=400)
-        except SubjectSchedule.DoesNotExist:
-            print("❌ ERROR: Schedule not found!")
-            return JsonResponse({"error": "Schedule not found"}, status=400)
-        except Exception as e:
-            print(f"❌ ERROR: {e}")
-            return JsonResponse({"error": str(e)}, status=400)
+        attendance_records = Attendance.objects.filter(**attendance_filter)
 
-    return JsonResponse({"error": "Invalid request method"}, status=405)
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename=attendance.xlsx'
 
-@csrf_exempt
-def filter_attendance(request):
-    if request.method == "POST":
-        start_date = request.POST.get("start_date")
-        end_date = request.POST.get("end_date")
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = 'Attendance Records'
 
-        try:
-            attendance_records = Attendance.objects.filter(attendance_date__range=[start_date, end_date])
+        headers = ['Student Name', 'Date', 'Status']
+        for col_num, header in enumerate(headers, 1):
+            cell = sheet.cell(row=1, column=col_num)
+            cell.value = header
+            cell.font = Font(bold=True)
 
-            list_data = []
-            for record in attendance_records:
-                list_data.append({
-                    "student": f"{record.student.admin.first_name} {record.student.admin.last_name}",
-                    "date": record.attendance_date,
-                    "status": "Present" if record.status == 1 else "Absent"
-                })
+        row_num = 2
+        for attendance in attendance_records:
+            reports = AttendanceReport.objects.filter(attendance=attendance)
+            for report in reports:
+                sheet.cell(row=row_num, column=1).value = report.student.admin.get_full_name()
+                sheet.cell(row=row_num, column=2).value = str(attendance.attendance_date)
+                sheet.cell(row=row_num, column=3).value = report.status.capitalize()
+                row_num += 1
 
-            return JsonResponse(list_data, safe=False)
+        workbook.save(response)
+        return response
 
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:
+        print(f"Error in download_attendance: {str(e)}")
+        return HttpResponse(f"Error: {str(e)}")
 
-    return JsonResponse({"error": "Invalid request method"}, status=405)
 
 def staff_update_attendance(request):
     staff = Staffs.objects.get(admin=request.user)

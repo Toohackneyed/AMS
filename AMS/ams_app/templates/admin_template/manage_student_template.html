@@ -11,8 +11,14 @@
                 <div class="card shadow-lg border-0 rounded">
                     <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
                         <h3 class="card-title">Student Details</h3>
-                        <div class="card-tools">
-                            <input type="text" id="searchInput" class="form-control" placeholder="Search student...">
+                        <div>
+                            <a href="{% url 'add_student' %}" class="btn btn-success btn-sm rounded-pill px-3">+ Enroll Student</a>
+                        </div>
+                        <div class="input-group input-group-sm" style="width: 200px;">
+                            <input type="text" id="searchInput" class="form-control rounded" placeholder="Search student...">
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-light"><i class="fas fa-search"></i></button>
+                            </div>
                         </div>
                     </div>
 
@@ -51,8 +57,6 @@
                                     <td>{{ student.admin.email }}</td>
                                     <td>{{ student.gender }}</td>
                                     <td>{{ student.session_year_id.session_start_date }} - {{ student.session_year_id.session_end_date }}</td>
-
-                                    <!-- Enrolled Subjects -->
                                     <td>
                                         {% with student.enrollment_set.all as enrollments %}
                                             {% if enrollments %}
@@ -66,7 +70,6 @@
                                             {% endif %}
                                         {% endwith %}
                                     </td>
-                                    
                                     <td>
                                         {% if student.profile_pic %}
                                             <img src="{{ student.profile_pic.url }}" class="img-thumbnail" style="width:70px; height:70px; object-fit: cover;"/>
@@ -76,10 +79,10 @@
                                     </td>
                                     <td>
                                         <a href="{% url 'edit_student' student_id=student.admin.id %}" class="btn btn-sm btn-success">
-                                            <i class="fas fa-edit"></i>
+                                            <i class="fas fa-edit"></i>Edit
                                         </a>
                                         <a href="{% url 'delete_student' student_id=student.admin.id %}" class="btn btn-sm btn-danger" onclick="return confirmDelete();">
-                                            <i class="fas fa-trash"></i>
+                                            <i class="fas fa-trash"></i>Delete
                                         </a>
                                     </td>
                                 </tr>

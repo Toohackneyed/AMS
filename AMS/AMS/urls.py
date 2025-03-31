@@ -72,20 +72,20 @@ urlpatterns = [
     path("get_sections_by_session_year/", adminviews.get_sections_by_session_year, name="get_sections_by_session_year"),
     path("download_attendance/", adminviews.download_attendance, name="download_attendance"),
     path("get_ongoing_subject/", adminviews.get_ongoing_subject, name="get_ongoing_subject"),
-    path('rfid_attendance/', adminviews.rfid_attendance, name='rfid_attendance'),
     path('api/rfid_tags/', adminviews.read_rfid_tag, name='get_rfid_tags'),
-    path('rfid-attendance/', adminviews.rfid_attendance, name='rfid_attendance'),
     path('api/rfid_username/', adminviews.get_rfid_username, name='get_rfid_username'),
 
                   #     Staff URL Path
     path('staff_home/', staffviews.staff_home, name="staff_home"),
     path('staff_take_attendance/', staffviews.staff_take_attendance, name="staff_take_attendance"),
-    path('filter_attendance', staffviews.filter_attendance, name="filter_attendance"),
+    # path('filter_attendance', staffviews.filter_attendance, name="filter_attendance"),
     path("staff_update_attendance", staffviews.staff_update_attendance, name="staff_update_attendance"),
     path('save_attendance_data', staffviews.save_attendance_data, name="save_attendance_data"),
     path('get_students', staffviews.get_students, name="get_students"),
+    # path('staff_view_attendance/', staffviews.staff_view_attendance, name='staff_view_attendance'),
     path('staff_profile', staffviews.staff_profile, name="staff_profile"),
     path('staff_profile_save', staffviews.staff_profile_save, name="staff_profile_save"),
+    path('download_attendance/', staffviews.download_attendance, name='download_attendance'),
 
                  #      Students URL Path
     path('student_home/', studentviews.student_home, name="student_home"),

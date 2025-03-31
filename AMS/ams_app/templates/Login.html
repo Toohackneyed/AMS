@@ -16,47 +16,87 @@
   <link rel="stylesheet" href="{% static 'dist/css/adminlte.min.css' %}">
 
   <style>
-    /* Background: Dark with Circuit Board Effect */
-    body {
-      background: linear-gradient(135deg, #0a0f2c, #1b2a49);
-      background-image: url('{% static "images/circuit-pattern.png" %}'); /* Add a circuit-like background */
-      background-size: cover;
+    /* Animated Gradient Background */
+    /* .hold-transition {
+      background-image: url('{% static "dist/img/background.jpg" %}');
+      background: linear-gradient(135deg, #8a98e7, #1b2a49);
+      background-size:cover;
+      background-attachment: fixed;
       color: #ffffff;
       font-family: 'Source Code Pro', monospace;
+      opacity: 0.4; 
+      z-index: -1; 
+    } */
+    /* Background Image (Optional) */
+    .hold-transition::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: url('{% static "dist/img/office bg.jpg" %}');
+      background-size: cover;
+      background-attachment: fixed;
+      /* opacity: 0.9; Adjust the opacity (0 to 1) */
+      z-index: -1; /* Para nasa likod ng content */
+    }
+
+    @keyframes gradientAnimation {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Logo Styling */
+    .logo img {
+      align-self:center;
+      width: 150px;
+      margin-bottom: 20px;
+      filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4));
     }
 
     /* Login Box */
     .login-box {
-      width: 420px;
+      width: 350px;
+      background: rgba(255, 255, 255, 0.363); /* Translucent white */
+      border-radius: 12px;
+      backdrop-filter: blur(12px); /* Blur effect for glassmorphism */
+      padding: 20px;
+      box-shadow: 0 0 15px rgb(0, 7, 8);
     }
 
     .login-logo a {
-      color: #00d4ff;
+      color: #f4f6fa;
       font-weight: bold;
-      text-shadow: 0 0 10px #00d4ff;
+      font-family: Verdana, Geneva, Tahoma, sans-serif;
+      text-shadow: 0 0 10px #020202;
     }
 
     .card {
       background: rgba(255, 255, 255, 0.1);
       border-radius: 12px;
-      box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+      /* box-shadow: 0 0 15px rgba(0, 213, 255, 0.185); */
       backdrop-filter: blur(8px);
     }
 
-    /* Input Fields */
+    .card-body {
+      background: rgba(54, 54, 54, 0.411);
+      border-radius: 12px;
+      /* box-shadow: 0 0 15px rgba(0, 0, 0, 0); */
+      backdrop-filter: blur(8px);
+    }
+
+
     .form-control {
       border-radius: 8px;
-      border: 1px solid #00d4ff;
+      /* border: 1px solid #00d4ff; */
       padding: 12px;
       font-size: 16px;
-      background: rgba(255, 255, 255, 0.1);
-      color: white;
+      background: rgba(255, 255, 255, 0.466);
+      color: rgb(5, 110, 2);
     }
-    .form-control::placeholder {
-      color: #a0cfff;
-    }
-    
-    /* Button */
+
     .btn-primary {
       background: linear-gradient(45deg, #00d4ff, #006eff);
       border: none;
@@ -64,39 +104,29 @@
       padding: 10px;
       border-radius: 8px;
       transition: 0.3s ease;
-      text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
     }
+
     .btn-primary:hover {
       background: linear-gradient(45deg, #006eff, #00d4ff);
       box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
     }
+    .alert {
+      border-radius: 8px;
+    }
     
-    /* Icons */
-    .input-group-text {
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      color: #00d4ff;
-    }
-
-    /* Error Message */
-    .alert-danger {
-      background: rgba(255, 0, 0, 0.8);
-      color: white;
-      font-weight: bold;
-      border-radius: 8px;
-    }
   </style>
 </head>
 <body class="hold-transition login-page">
-  <div class="login-box">
-    <div class="login-logo">
-      <a href="#"><b>Attendance Monitoring System</b></a>
+  <div class="login-box text-center">
+    <div class="logo">
+      <img src="{% static '\dist\img\IdentiTech-Logo.png' %}" alt="AMS Logo">
     </div>
-
+    <div class="login-logo">
+      <a href="#"><b>Attendance Management System</b></a>
+    </div>
     <div class="card">
       <div class="card-body login-card-body">
         <p class="login-box-msg text-light">Sign in to AMS</p>
-
         <form action="/LoggedIn" method="post">
           {% csrf_token %}
           <div class="input-group mb-3">
@@ -107,7 +137,6 @@
               </div>
             </div>
           </div>
-
           <div class="input-group mb-3">
             <input type="password" class="form-control" placeholder="Password" name="password" required>
             <div class="input-group-append">
@@ -116,30 +145,21 @@
               </div>
             </div>
           </div>
-
           <div class="col-12">
             <button type="submit" class="btn btn-primary btn-block">Sign In</button>
           </div>
         </form>
-
         {% if messages %}
-          <div class="col-12 mt-3">
-            {% for message in messages %}
-              {% if message.tags == 'error' %}
-                <div class="alert alert-danger">{{ message }}</div>
-              {% endif %}
-            {% endfor %}
-          </div>
-        {% endif %}
+        <div class="col-12 mt-3">
+          {% for message in messages %}
+            {% if message.tags == 'error' %}
+              <div class="alert alert-danger">{{ message }}</div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
       </div>
     </div>
   </div>
-
-  <!-- jQuery -->
-  <script src="{% static 'plugins/jquery/jquery.min.js' %}"></script>
-  <!-- Bootstrap 4 -->
-  <script src="{% static 'plugins/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
-  <!-- AdminLTE App -->
-  <script src="{% static 'dist/js/adminlte.min.js' %}"></script>
 </body>
 </html>

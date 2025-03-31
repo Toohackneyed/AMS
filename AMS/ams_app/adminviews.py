@@ -20,6 +20,8 @@ from django.core.files.base import ContentFile
 import json
 from django.utils.timezone import now, localtime, make_aware
 import base64
+import openpyxl
+from openpyxl.styles import Font
 import io
 from django.db import transaction   
 import threading
@@ -35,6 +37,8 @@ import serial
 import time
 import serial.tools.list_ports
 import re
+import csv
+from datetime import datetime 
 
 #rfid reader
 
@@ -621,113 +625,131 @@ def admin_view_attendance(request):
     subjects = Subjects.objects.all()
     schedules = SubjectSchedule.objects.all()
     session_years = SessionYearModel.objects.all()
-    sections = Sections.objects.all()  # Kunin ang lahat ng sections
+    sections = Sections.objects.all()
 
     context = {
         'subjects': subjects,
         'schedules': schedules,
         'session_years': session_years,
-        'sections': sections  # Ipadala sa template
+        'sections': sections
     }
-    
     return render(request, "admin_template/admin_view_attendance.html", context)
+
 
 @csrf_exempt
 def get_sections_by_session_year(request):
     """ Fetch sections based on selected session year """
     if request.method == 'POST':
         session_year_id = request.POST.get('session_year')
-
         sections = Sections.objects.filter(session_year_id=session_year_id)
-
         section_data = [{"id": section.id, "name": section.section_name} for section in sections]
         return JsonResponse(section_data, safe=False)
-
     return JsonResponse({'error': 'Invalid request'}, status=400)
-
 @csrf_exempt
 def get_attendance(request):
-    """ Fetch attendance records based on selected filters """
-    if request.method == 'POST':
-        subject_id = request.POST.get('subject')
-        session_year_id = request.POST.get('session_year')
-        schedule_id = request.POST.get('schedule')
-        section_id = request.POST.get('section')  # Kunin ang section
-        start_date = request.POST.get('start_date')
-        end_date = request.POST.get('end_date')
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
 
-        start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-        end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+            subject_id = data.get("subject")
+            session_year_id = data.get("session_year")
+            schedule_id = data.get("schedule")
+            section_id = data.get("section")
+            start_date = data.get("start_date")
+            end_date = data.get("end_date")
 
-        # I-filter ang attendance gamit ang section
-        attendance_records = Attendance.objects.filter(
-            subject_id=subject_id,
-            session_year_id=session_year_id,
-            schedule_id=schedule_id,
-            students__section_id=section_id,  # Isama ang filter sa section
-            attendance_date__range=(start_date, end_date)
-        )
+            print(f"🛠️ Debug: Received Data - {data}")
 
-        attendance_data = []
-        for attendance in attendance_records:
-            reports = AttendanceReport.objects.filter(attendance=attendance)
-            for report in reports:
-                attendance_data.append({
-                    "student_name": report.student.admin.get_full_name(),
-                    "date": attendance.attendance_date.strftime("%Y-%m-%d"),
-                    "status": report.status
-                })
+            # **Step 1: I-log lahat ng attendance records sa database**
+            all_attendance = Attendance.objects.all()
+            print("🛠️ Debug: All Attendance Records in DB:")
+            for att in all_attendance:
+                print(f"ID: {att.id}, Date: {att.attendance_date}, Subject: {att.subject_id}, Session Year: {att.session_year_id}, Schedule: {att.schedule_id}")
 
-        return JsonResponse(attendance_data, safe=False)
+            # **Step 2: Filtering ng Attendance**
+            attendance_filter = {
+                'subject_id': subject_id,
+                'session_year_id': session_year_id,
+                'attendance_date__range': (start_date, end_date)
+            }
 
-    return JsonResponse({'error': 'Invalid request'}, status=400)
+            if section_id and section_id != "":
+                attendance_filter['students__section_id'] = section_id
 
+            # **Step 3: Query with Debug Logs**
+            attendance_records = Attendance.objects.filter(**attendance_filter).select_related("subject", "session_year", "schedule").prefetch_related("students")
+
+            print(f"🛠️ Debug: Filters -> Subject: {subject_id}, Session Year: {session_year_id}, Schedule: {schedule_id}, Section: {section_id}, Start: {start_date}, End: {end_date}")
+            print(f"🛠️ Debug: Attendance Records Found - {attendance_records.count()}")
+
+            if not attendance_records.exists():
+                return JsonResponse([], safe=False)
+
+            # **Step 4: Convert to JSON Response**
+            response_data = []
+            for attendance in attendance_records:
+                for report in attendance.attendancereport_set.all():
+                    response_data.append({
+                        "student_name": report.student.admin.first_name + " " + report.student.admin.last_name,
+                        "date": str(attendance.attendance_date),
+                        "status": report.status,
+                        "subject_name": attendance.subject.subject_name,
+                        "instructor_name": attendance.subject.staff.admin.first_name + " " + attendance.subject.staff.admin.last_name
+                    })
+
+            return JsonResponse(response_data, safe=False)
+
+        except Exception as e:
+            print(f"⚠️ Error: {str(e)}")
+            return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
 def download_attendance(request):
-    """ Export attendance records as Excel file """
-    
-    subject_id = request.GET.get("subject")
-    session_year_id = request.GET.get("session_year")
-    schedule_id = request.GET.get("schedule")
-    section_id = request.GET.get("section")
-    start_date = request.GET.get("start_date")
-    end_date = request.GET.get("end_date")
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
 
-    start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-    end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+            subject_id = data.get("subject")
+            session_year_id = data.get("session_year")
+            schedule_id = data.get("schedule")
+            section_id = data.get("section")
+            start_date = data.get("start_date")
+            end_date = data.get("end_date")
 
-    # Kunin ang attendance records
-    attendance_records = Attendance.objects.filter(
-        subject_id=subject_id,
-        session_year_id=session_year_id,
-        schedule_id=schedule_id,
-        students__section_id=section_id,
-        attendance_date__range=(start_date, end_date)
-    )
+            attendance_filter = {
+                'subject_id': subject_id,
+                'session_year_id': session_year_id,
+                'attendance_date__range': (start_date, end_date)
+            }
 
-    # I-prepare ang data
-    data = []
-    for attendance in attendance_records:
-        reports = AttendanceReport.objects.filter(attendance=attendance)
-        for report in reports:
-            data.append([
-                report.student.admin.get_full_name(),
-                report.student.id_number,
-                attendance.attendance_date.strftime("%Y-%m-%d"),
-                report.status
-            ])
+            if section_id and section_id != "":
+                attendance_filter['students__section_id'] = section_id
 
-    # Gawing DataFrame
-    df = pd.DataFrame(data, columns=["Student Name", "ID Number", "Date", "Status"])
+            attendance_records = Attendance.objects.filter(**attendance_filter).select_related("subject", "session_year", "schedule").prefetch_related("students")
 
-    # Gumawa ng Excel file
-    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    response["Content-Disposition"] = "attachment; filename=attendance.xlsx"
-    
-    with pd.ExcelWriter(response, engine="openpyxl") as writer:
-        df.to_excel(writer, sheet_name="Attendance", index=False)
+            if not attendance_records.exists():
+                return JsonResponse({"error": "No attendance records found."}, status=404)
 
-    return response
+            data_list = []
+            for attendance in attendance_records:
+                for report in attendance.attendancereport_set.all():
+                    data_list.append([
+                        report.student.admin.first_name + " " + report.student.admin.last_name,
+                        str(attendance.attendance_date),
+                        report.status,
+                        attendance.subject.subject_name,
+                        attendance.subject.staff.admin.first_name + " " + attendance.subject.staff.admin.last_name
+                    ])
 
+            df = pd.DataFrame(data_list, columns=["Student Name", "Date", "Status", "Subject", "Instructor"])
+            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = 'attachment; filename="attendance.xlsx"'
+            df.to_excel(response, index=False)
+            return response
+
+        except Exception as e:
+            print(f"⚠️ Error: {str(e)}")
+            return JsonResponse({"error": str(e)}, status=400)
 def admin_profile(request):
     user=CustomUser.objects.get(id=request.user.id)
     return render(request,"admin_template/admin_profile.html",{"user":user})
@@ -790,9 +812,28 @@ def edit_session(request, session_id):
     return render(request, 'admin_template/edit_session.html', {'session': session})
 
 def delete_staff(request, staff_id):
-    staff = get_object_or_404(Staffs, admin__id=staff_id)
-    staff.delete()
-    messages.success(request, "Staff successfully deleted.")
+    try:
+        # Get the staff object
+        staff = get_object_or_404(Staffs, admin__id=staff_id)
+        
+        # Get the associated user object
+        user = staff.admin
+
+        # Check if the user object is valid and has a valid ID
+        if user is not None and user.pk:
+            # Delete the staff record first
+            staff.delete()
+            # Then delete the associated user
+            user.delete()
+            messages.success(request, "Staff and associated user successfully deleted.")
+        else:
+            # If the user object is not valid or has no ID, just delete the staff
+            staff.delete()
+            messages.warning(request, "Staff deleted, but associated user object was invalid or missing.")
+            
+    except Exception as e:
+        messages.error(request, f"An error occurred while deleting staff: {str(e)}")
+    
     return redirect('manage_staff')
 
 def delete_subject(request, subject_id):
@@ -847,7 +888,7 @@ def auto_mark_attendance_live(request):
 
         img = cv2.resize(img, (320, 240))
         rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        face_locations = face_recognition.face_locations(rgb_img, model='hog')
+        face_locations = face_recognition.face_locations(rgb_img, model='cnn')
         face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
 
         if not face_encodings:
@@ -860,30 +901,39 @@ def auto_mark_attendance_live(request):
         for uploaded_encoding in face_encodings:
             matches = face_recognition.compare_faces(known_encodings, uploaded_encoding)
             if True in matches:
-                matched_index = matches.index(True)
-                matched_student = students[matched_index]
+                for idx, match in enumerate(matches):
+                    if match:
+                        matched_student = students[idx]
+                        break
+
                 matched_name = matched_student.admin.get_full_name()
                 stored_rfid = matched_student.rfid
 
                 print(f"🔑 DEBUG: Face recognized for {matched_name} with RFID {stored_rfid}")
 
-                # RFID Verification
+                # Check if the student is actually enrolled in the subject
+                if not Enrollment.objects.filter(student=matched_student, subject=actual_subject).exists():
+                    print(f"❌ ERROR: {matched_name} is not enrolled in {actual_subject}")
+                    return JsonResponse({"error": "Student is not enrolled in this subject"}, status=400)
+
                 try:
                     with open("rfid_tags.txt", "r") as file:
                         tags = file.read().splitlines()
 
                     if stored_rfid in tags:
-                        attendance, _ = Attendance.objects.get_or_create(
+                        attendance, created = Attendance.objects.get_or_create(
                             subject=actual_subject,
                             schedule=subject_schedule,
                             session_year=session_year,
                             attendance_date=date.today()
                         )
+                        attendance.students.add(matched_student)
+                        attendance.save()
 
                         AttendanceReport.objects.get_or_create(
                             student=matched_student,
                             attendance=attendance,
-                            status="present"
+                            status="Present"
                         )
 
                         print(f"✅ SUCCESS: Attendance marked for {matched_name} ({stored_rfid})")
@@ -899,12 +949,12 @@ def auto_mark_attendance_live(request):
                     print(f"⚠️ ERROR: RFID verification failed -> {e}")
                     return JsonResponse({"error": "RFID verification failed"}, status=500)
 
+
         return JsonResponse({"error": "No matching student found"}, status=404)
 
     except Exception as e:
         print(f"⚡ ERROR: Exception processing image -> {e}")
         return JsonResponse({"error": "Error processing image"}, status=500)
-
 
 def get_ongoing_subject(request):   
     """Fetch currently ongoing class. Search for a new class only when the ongoing class ends."""
@@ -958,9 +1008,9 @@ def find_ch340_port():
     ports = serial.tools.list_ports.comports()
     for port in ports:
         if "CH340" in port.description:
-            print(f"✅ Found CH340 RFID Reader on {port.device}")
+            #print(f"✅ Found CH340 RFID Reader on {port.device}")
             return port.device
-    print("❌ CH340 RFID Reader not found! Please check the connection.")
+    #print("❌ CH340 RFID Reader not found! Please check the connection.")
     return None
 
 def clean_rfid_data(data):
@@ -1002,8 +1052,7 @@ def read_rfid_tag(port):
                     else:
                         print(f"🔁 Duplicate Tag Skipped: {tag}")
 
-    except serial.SerialException as e:
-        print(f"⚠️ Serial Error: {e}")
+
     except KeyboardInterrupt:
         print("\n🔌 RFID Reader disconnected.")
 
@@ -1014,13 +1063,8 @@ def scan_for_reader():
         if com_port:
             read_rfid_tag(com_port)
         else:
-            print("🔄 Rescanning for RFID reader in 5 seconds...")
+            #print("🔄 Rescanning for RFID reader in 5 seconds...")
             time.sleep(5)
-
-# 📝 Django Views
-def rfid_attendance(request):
-    """Render the RFID Attendance page."""
-    return render(request, "admin_template/rfid_attendance_template.html")
 
 def get_rfid_username(request):
     """Fetch the username associated with the latest detected RFID tag."""

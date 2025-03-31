@@ -1,17 +1,16 @@
 {% extends 'admin_template/base_template.html' %}
 
-{% block page_title %}
-{% endblock page_title %}
+{% block page_title %}Live Attendance Monitoring{% endblock page_title %}
 
 {% block main_content %}
 <div class="container-fluid">
     <div class="row">
-        <!-- Fixed Message -->
+        <!-- Ongoing Class Message -->
         <div class="col-12 text-center mb-3">
             <h3 id="fixedMessage">⏳ Checking ongoing class...</h3>
         </div>
 
-        <!-- Camera Feed (Left) -->
+        <!-- Camera Feed Section -->
         <div class="col-md-7 text-center">
             <div class="video-container">
                 <video id="video" width="900" height="650" autoplay playsinline></video>
@@ -21,12 +20,12 @@
             <p id="result" class="mt-3 text-info">⏳ Waiting for attendance...</p>
         </div>
 
-        <!-- Attendance Log (Right) -->
-        <div id="attendancediv" class="col-md-5" style="overflow-y: auto;">
+        <!-- Attendance Log Section -->
+        <div id="attendancediv" class="col-md-5">
             <h3 id="title">📝 Attendance Log</h3>
             <ul id="attendanceLog" class="list-group">
                 <li class="list-group-item no-record">No attendance recorded yet.</li>
-            </ul>            
+            </ul>
         </div>
     </div>
 </div>
@@ -37,7 +36,7 @@
         display: inline-block;
         margin: 10px;
     }
-
+    
     #fullscreenBtn {
         position: absolute;
         bottom: 10px;
@@ -48,41 +47,36 @@
         padding: 5px 10px;
         cursor: pointer;
     }
-
+    
     #attendanceLog {
         max-height: 300px;
-        max-width: 615px;
         overflow-y: auto;
         border: 1px solid #007bff;
         border-radius: 8px;
         padding: 5px;
         margin-top: 5px;
     }
-
+    
     #attendancediv {
         max-height: 510px;
-        max-width: 650px;
         overflow-y: auto;
         border: 2px solid #007bff;
         border-radius: 8px;
         padding: 15px;
-        margin-top: 80px;
+        margin-top: 50px;
     }
-
+    
     .list-group-item {
-        margin: 2px 0;
         background-color: #d1e7dd;
         color: #0f5132;
         font-weight: bold;
     }
-
+    
     #title {
-        margin-top: 0;
-        padding: 5px;
-        border-radius: 5px;
         background-color: #007bff;
         color: white;
-        align-items: center;
+        padding: 5px;
+        border-radius: 5px;
     }
 </style>
 
@@ -100,10 +94,10 @@
 
     async function startCamera() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             video.srcObject = stream;
         } catch (err) {
-            console.error("Error accessing camera:", err);
+            console.error("Camera access error:", err);
             result.innerText = "⚠️ Please allow camera permissions.";
         }
     }
@@ -121,31 +115,21 @@
     });
 
     function addToAttendanceLog(studentName, status) {
-    // Check and remove the "No attendance recorded yet." message
-    const noRecordMessage = attendanceLog.querySelector('.no-record');
-    if (noRecordMessage) {
-        noRecordMessage.remove();
+        const noRecordMessage = attendanceLog.querySelector('.no-record');
+        if (noRecordMessage) noRecordMessage.remove();
+
+        const studentEntry = `${studentName} - ${status}`;
+        if (Array.from(attendanceLog.children).some(item => item.innerText === studentEntry)) return;
+
+        const newItem = document.createElement("li");
+        newItem.classList.add("list-group-item");
+        newItem.innerText = studentEntry;
+        attendanceLog.prepend(newItem);
+
+        if (attendanceLog.childElementCount > 5) {
+            attendanceLog.removeChild(attendanceLog.lastChild);
+        }
     }
-
-    // Check if the student is already in the attendance log
-    const existingEntries = Array.from(attendanceLog.children).map(item => item.innerText);
-    const studentEntry = `${studentName} - ${status}`;
-
-    // If the student is already logged, don't add again
-    if (existingEntries.includes(studentEntry)) return;
-
-    const newItem = document.createElement("li");
-    newItem.classList.add("list-group-item");
-    newItem.innerText = studentEntry;
-    attendanceLog.prepend(newItem);
-
-    // Limit the log to 5 items only
-    if (attendanceLog.childElementCount > 5) {
-        attendanceLog.removeChild(attendanceLog.lastChild);
-    }
-}
-
-
 
     function checkOngoingClass() {
         fetch("/get_ongoing_subject/")
@@ -160,63 +144,52 @@
                 }
             })
             .catch(error => {
-                console.error("Error checking schedule:", error);
+                console.error("Schedule check error:", error);
                 fixedMessage.innerText = "⚠️ Error fetching schedule.";
             });
     }
     setInterval(checkOngoingClass, 3000);
 
     function startFaceRecognition() {
-    if (interval) clearInterval(interval);
-    interval = setInterval(() => {
-        if (isProcessing || !subjectId) return;
-        isProcessing = true;
+        if (interval) clearInterval(interval);
+        interval = setInterval(() => {
+            if (isProcessing || !subjectId) return;
+            isProcessing = true;
 
-        const context = canvas.getContext("2d");
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const context = canvas.getContext("2d");
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append("image", blob);
+                formData.append("subject_id", subjectId);
 
-        canvas.toBlob(blob => {
-            const formData = new FormData();
-            formData.append("image", blob);
-            formData.append("subject_id", subjectId);
-
-            fetch('/auto_mark_attendance_live/', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log("📥 Received response from backend:", data); // Debugging line
-
-                // Check for the correct response format
-                if (data.message && data.rfid) {
-                    console.log(`✅ Attendance recorded for ${data.message}`); // Debugging line
-                    addToAttendanceLog(data.message, "Present");
-                    result.innerText = `✅ ${data.message}`;
-                } else if (data.matched_students && data.matched_students.length > 0) {
-                    data.matched_students.forEach(student => {
-                        console.log(`✅ Attendance for ${student.student_name}: ${student.status}`); // Debugging line
-                        addToAttendanceLog(student.student_name, student.status);
-                        result.innerText = `✅ Attendance marked for ${student.student_name}`;
-                    });
-                } else if (data.error) {
-                    result.innerText = `❌ ${data.error}`;
-                    console.error("❗ Error response:", data.error); // Debugging line
-                } else {
-                    result.innerText = "❌ Attendance failed.";
-                    console.error("❗ Unexpected response format:", data); // Debugging line
-                }
-            })
-            .catch(error => {
-                console.error("❗ Error marking attendance:", error);
-                result.innerText = "⚠️ Error marking attendance.";
-            })
-            .finally(() => {
-                isProcessing = false;
-            });
-        }, "image/png");
-    }, 2000);
-}
-
+                fetch('/auto_mark_attendance_live/', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        addToAttendanceLog(data.message, "Present");
+                        result.innerText = `✅ ${data.message}`;
+                    } else if (data.matched_students?.length > 0) {
+                        data.matched_students.forEach(student => {
+                            addToAttendanceLog(student.student_name, student.status);
+                            result.innerText = `✅ Attendance marked for ${student.student_name}`;
+                        });
+                    } else {
+                        result.innerText = "❌ Attendance failed.";
+                    }
+                })
+                .catch(error => {
+                    console.error("Attendance error:", error);
+                    result.innerText = "⚠️ Error marking attendance.";
+                })
+                .finally(() => {
+                    isProcessing = false;
+                });
+            }, "image/png");
+        }, 2000);
+    }
 </script>
 {% endblock main_content %}

@@ -1,6 +1,7 @@
 {% extends 'admin_template/base_template.html' %}
 
 {% block page_title %}
+Manage Sections
 {% endblock page_title %}
 
 {% block main_content %}
@@ -10,19 +11,22 @@
             <div class="col-lg-10">
                 <div class="card shadow-lg border-0 rounded">
                     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <h3 class="card-title">Section Details</h3>
-                        <div class="input-group input-group-sm" style="width: 200px;">
-                            <input type="text" id="searchBox" class="form-control" placeholder="Search">
+                        <h3 class="card-title mb-0">Section Details</h3>
+                        <div>
+                            <a href="{% url 'add_section' %}" class="btn btn-success btn-sm rounded-pill px-3">+ Add Section</a>
+                        </div>
+                        <div class="input-group input-group-sm w-25">
+                            <input type="text" name="table_search" id="searchBox" class="form-control rounded" placeholder="Search section..." onkeyup="searchTable()">
                             <div class="input-group-append">
-                                <button type="button" class="btn btn-light" onclick="searchTable()">
+                                <button type="button" class="btn btn-light">
                                     <i class="fas fa-search"></i>
                                 </button>
                             </div>
                         </div>
                     </div>
 
-                    <div class="card-body table-responsive">
-                        <table class="table table-bordered table-hover text-center" id="sectionTable">
+                    <div class="card-body table-responsive p-0">
+                        <table class="table table-hover text-center" id="sectionTable">
                             <thead class="bg-light">
                                 <tr>
                                     <th>ID</th>
@@ -62,12 +66,22 @@ function confirmDelete() {
 
 function searchTable() {
     let input = document.getElementById("searchBox").value.toLowerCase();
-    let rows = document.querySelectorAll("#sectionTable tbody tr");
+    let table = document.getElementById("sectionTable");
+    let rows = table.getElementsByTagName("tr");
 
-    rows.forEach(row => {
-        let sectionName = row.cells[1].textContent.toLowerCase();
-        row.style.display = sectionName.includes(input) ? "" : "none";
-    });
+    for (let i = 1; i < rows.length; i++) {  // Skip header row
+        let cells = rows[i].getElementsByTagName("td");
+        let match = false;
+
+        for (let j = 0; j < cells.length; j++) {
+            if (cells[j].textContent.toLowerCase().includes(input)) {
+                match = true;
+                break;
+            }
+        }   
+
+        rows[i].style.display = match ? "" : "none";
+    }
 }
 </script>
 
