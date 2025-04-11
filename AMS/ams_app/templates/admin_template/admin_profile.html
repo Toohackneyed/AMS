@@ -1,71 +1,80 @@
 {% extends 'admin_template/base_template.html' %}
-{% block page_title %}
-{% endblock page_title %}
+{% block page_title %}Edit Profile{% endblock page_title %}
 {% block main_content %}
-    <!-- Main content -->
-    <section class="content">
-      <div class="container-fluid">
-          <div class="row">
-              <div class="col-md-12">
-            <!-- general form elements -->
-            <div class="card card-primary">
-              <div class="card-header">
-                <h3 class="card-title">Edit Profile</h3>
-              </div>
-              <!-- /.card-header -->
-              <!-- form start -->
-              <form role="form" action="{% url 'admin_profile_save' %}" method="post">
-                  {% csrf_token %}
-                <div class="card-body">
-                  <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" class="form-control" name="username" value="{{ user.username }}" disabled="disabled">
-                  </div>
-                  <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" class="form-control" name="username" value="{{ user.email }}" disabled="disabled">
-                  </div>
-                   <div class="form-group">
-                    <label>First Name</label>
-                    <input type="text" class="form-control" name="first_name" value="{{ user.first_name }}">
-                  </div>
-                  <div class="form-group">
-                    <label>Last Name</label>
-                    <input type="text" class="form-control" name="last_name" value="{{ user.last_name }}">
-                  </div>
-                   <div class="form-group">
-                    <label>Change Password?</label>
-                    <input type="text" class="form-control" name="password" placeholder="Fill Only If You want to Change Password">
-                  </div>
-                   <div class="form-group">
-                      {% if messages %}
-                        {% for message in messages %}
-                        {% if message.tags == 'error' %}
-                        <div class="alert alert-danger" style="margin-top:10px">{{ message }}</div>
-                        {% endif %}
-                        {% if message.tags == 'success' %}
-                        <div class="alert alert-success" style="margin-top:10px">{{ message }}</div>
-                        {% endif %}
-                        {% endfor %}
-                      {% endif %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow-lg rounded-lg">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h3 class="card-title m-0">Edit Profile</h3>
+                        <button id="editBtn" class="btn btn-warning btn-sm">Edit</button>
                     </div>
-
+                    <form role="form" action="{% url 'admin_profile_save' %}" method="post" class="p-3">
+                        {% csrf_token %}
+                        
+                        <div class="form-group mb-3">
+                            <label>Username</label>
+                            <input type="text" class="form-control editable" name="username" value="{{ user.username }}" disabled>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label>Email</label>
+                            <input type="email" class="form-control editable" name="email" value="{{ user.email }}" disabled>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label>First Name</label>
+                            <input type="text" class="form-control editable" name="first_name" value="{{ user.first_name }}" disabled>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label>Last Name</label>
+                            <input type="text" class="form-control editable" name="last_name" value="{{ user.last_name }}" disabled>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label>Current Password</label>
+                            <input type="password" class="form-control" name="current_password" placeholder="Enter current password to confirm" disabled>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label>New Password</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control editable" name="password" placeholder="Fill only if you want to change password" disabled>
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-light text-center">
+                            <button type="submit" class="btn btn-success w-100" id="saveBtn" disabled>Save Profile</button>
+                        </div>
+                    </form>
                 </div>
-                <!-- /.card-body -->
-
-                <div class="card-footer">
-                  <button type="submit" class="btn btn-primary btn-block">Save Profile</button>
-                </div>
-              </form>
             </div>
-            <!-- /.card -->
+        </div>
+    </div>
+</section>
 
+<script>
+    document.getElementById("editBtn").addEventListener("click", function() {
+        let inputs = document.querySelectorAll(".editable");
+        inputs.forEach(input => input.disabled = !input.disabled);
+        document.querySelector("input[name='current_password']").disabled = !document.querySelector("input[name='current_password']").disabled;
+        document.getElementById("saveBtn").disabled = !document.getElementById("saveBtn").disabled;
+    });
 
-
-          </div>
-          </div>
-      </div>
-    </section>
-    <!-- /.content -->
+    // Toggle password visibility
+    document.getElementById("togglePassword").addEventListener("click", function() {
+        let passwordField = document.querySelector("input[name='password']");
+        if (passwordField.type === "password") {
+            passwordField.type = "text";
+            this.innerHTML = '<i class="fas fa-eye-slash"></i>';
+        } else {
+            passwordField.type = "password";
+            this.innerHTML = '<i class="fas fa-eye"></i>';
+        }
+    });
+</script>
 {% endblock main_content %}
-

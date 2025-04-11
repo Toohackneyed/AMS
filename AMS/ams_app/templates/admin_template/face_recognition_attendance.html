@@ -36,7 +36,7 @@
         display: inline-block;
         margin: 10px;
     }
-    
+
     #fullscreenBtn {
         position: absolute;
         bottom: 10px;
@@ -47,7 +47,7 @@
         padding: 5px 10px;
         cursor: pointer;
     }
-    
+
     #attendanceLog {
         max-height: 300px;
         overflow-y: auto;
@@ -56,7 +56,7 @@
         padding: 5px;
         margin-top: 5px;
     }
-    
+
     #attendancediv {
         max-height: 510px;
         overflow-y: auto;
@@ -65,13 +65,13 @@
         padding: 15px;
         margin-top: 50px;
     }
-    
+
     .list-group-item {
         background-color: #d1e7dd;
         color: #0f5132;
         font-weight: bold;
     }
-    
+
     #title {
         background-color: #007bff;
         color: white;
@@ -159,8 +159,14 @@
             const context = canvas.getContext("2d");
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             canvas.toBlob(blob => {
+                if (!blob) {
+                    console.error("❌ Failed to capture image from canvas.");
+                    isProcessing = false;
+                    return;
+                }
+
                 const formData = new FormData();
-                formData.append("image", blob);
+                formData.append("image", blob, "snapshot.png");
                 formData.append("subject_id", subjectId);
 
                 fetch('/auto_mark_attendance_live/', {

@@ -49,7 +49,13 @@
               <p>View Attendance</p>
             </a>
           </li>      
-
+          <li class="nav-item">
+            {% url 'student_my_subjects' as student_my_subjects %}
+            <a href="{{ student_my_subjects }}" class="nav-link {% if request.path == student_my_subjects %}active{% endif %}">
+              <i class="nav-icon fas fa-book-open"></i>
+              <p>My Subjects</p>
+            </a>
+          </li>
         </ul>
       </nav>
       <!-- /.sidebar-menu -->

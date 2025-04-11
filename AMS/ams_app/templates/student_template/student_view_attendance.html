@@ -1,164 +1,136 @@
 {% extends 'student_template/base_template.html' %}
 
-{% block page_title %}
-View Attendance Data
-{% endblock page_title %}
+{% block page_title %}My Attendance{% endblock %}
 
 {% block main_content %}
-<section class="content">
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-md-12">
-                <div class="card card-primary">
-                    <div class="card-header">
-                        <h3 class="card-title">View Attendance Data</h3>
-                    </div>
-                    <form action="{% url 'student_view_attendance' %}" method="post">
-                        {% csrf_token %}
+<div class="container mt-5">
+    <h3 class="mb-4">My Attendance</h3>
+    <div class="card p-4 shadow-sm">
 
-                    <div class="card-body">
-                        <!-- Subject Selection -->
-                        <div class="form-group">
-                            <label>Subject</label>
-                            <select class="form-control" name="subject" id="subject">
-                                {% for subject in subjects %}
-                                    <option value="{{ subject.id }}">{{ subject.subject_name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <!-- Schedule Selection -->
-                        <div class="form-group">
-                            <label>Schedule</label>
-                            <select class="form-control" name="schedule" id="schedule">
-                                {% for schedule in schedules %}
-                                    <option value="{{ schedule.id }}">{{ schedule.subject.subject_name }} - {{ schedule.day_of_week }} ({{ schedule.start_time }} - {{ schedule.end_time }})</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <!-- Option: Specific Week or All Weeks -->
-                        <div class="form-group">
-                            <label>Attendance Scope</label>
-                            <select class="form-control" name="attendance_scope" id="attendance_scope">
-                                <option value="all">All Weeks</option>
-                                <option value="specific">Specific Week</option>
-                            </select>
-                        </div>
-
-                        <!-- Date Range -->
-                        <div class="row" id="date_range">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Start Date:</label>
-                                    <input type="date" name="start_date" id="start_date" class="form-control">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>End Date:</label>
-                                    <input type="date" name="end_date" id="end_date" class="form-control">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Session Year Selection -->
-                        <div class="form-group">
-                            <label>Session Year</label>
-                            <select class="form-control" name="session_year" id="session_year">
-                                {% for session_year in session_years %}
-                                    <option value="{{ session_year.id }}">{{ session_year.session_start_date }} TO {{ session_year.session_end_date }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="card-footer">
-                        <button type="button" class="btn btn-primary btn-block" id="fetch_attendance">Fetch Attendance</button>
-                    </div>
-
-                    <!-- Attendance Data Table -->
-                    <div id="attendance_data" class="card-body"></div>
-                </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label>Subject</label>
+                <select id="subject" class="form-control">
+                    <option value="">-- All Subjects --</option>
+                    {% for subject in subjects %}
+                        <option value="{{ subject.id }}">{{ subject.subject_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label>Session Year</label>
+                <select id="session_year" class="form-control">
+                    {% for session_year in session_years %}
+                        <option value="{{ session_year.id }}">{{ session_year.session_start_date }} to {{ session_year.session_end_date }}</option>
+                    {% endfor %}
+                </select>
             </div>
         </div>
+
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label>Start Date</label>
+                <input type="date" id="start_date" class="form-control">
+            </div>
+            <div class="col-md-6">
+                <label>End Date</label>
+                <input type="date" id="end_date" class="form-control">
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between mt-3">
+            <button class="btn btn-primary" id="fetch_attendance">Fetch Attendance</button>
+            <button class="btn btn-success" id="download_attendance">Download Attendance</button>
+        </div>
     </div>
-</section>
-{% endblock main_content %}
+
+    <div id="attendance_data" class="mt-4"></div>
+</div>
+{% endblock %}
 
 {% block custom_js %}
 <script>
     $(document).ready(function () {
-        // Hide date range initially
-        $("#date_range").hide();
-
-        // Show date range only when "Specific Week" is selected
-        $("#attendance_scope").change(function () {
-            if ($(this).val() === "specific") {
-                $("#date_range").show();
+        function toggleLoading(show) {
+            if (show) {
+                $("#attendance_data").html('<div class="text-center"><div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div>');
             } else {
-                $("#date_range").hide();
+                $("#attendance_data").empty();
             }
-        });
+        }
+
+        function getFilterData() {
+            return {
+                subject: $("#subject").val(),
+                session_year: $("#session_year").val(),
+                start_date: $("#start_date").val(),
+                end_date: $("#end_date").val()
+            };
+        }
 
         $("#fetch_attendance").click(function () {
-            var subject = $("#subject").val();
-            var session_year = $("#session_year").val();
-            var schedule = $("#schedule").val();
-            var attendance_scope = $("#attendance_scope").val();
-            var start_date = $("#start_date").val();
-            var end_date = $("#end_date").val();
+            const filters = getFilterData();
 
-            if (!subject || !session_year || !schedule) {
-                alert("Please select Subject, Schedule, and Session Year.");
+            if (!filters.start_date || !filters.end_date || !filters.session_year) {
+                alert("Please select session year and date range.");
                 return;
             }
 
-            if (attendance_scope === "specific" && (!start_date || !end_date)) {
-                alert("Please select both start and end dates.");
-                return;
-            }
+            toggleLoading(true);
 
             $.ajax({
-                url: "{% url 'get_attendance_data' %}",
-                type: 'POST',
-                data: {
-                    subject: subject,
-                    session_year: session_year,
-                    schedule: schedule,
-                    attendance_scope: attendance_scope,
-                    start_date: start_date,
-                    end_date: end_date
-                },
-                beforeSend: function () {
-                    $("#fetch_attendance").text("Fetching...").attr("disabled", true);
-                }
-            })
-            .done(function (response) {
-                console.log("Response from server:", response);
-                var table_data = "<table class='table table-bordered'><thead><tr><th>Date</th><th>Status</th></tr></thead><tbody>";
+                url: "{% url 'student_get_attendance' %}",
+                type: "POST",
+                contentType: "application/json",
+                headers: { "X-CSRFToken": "{{ csrf_token }}" },
+                data: JSON.stringify(filters),
+                success: function (response) {
+                    toggleLoading(false);
 
-                if (response.length === 0) {
-                    table_data += "<tr><td colspan='2' class='text-center text-danger'>No attendance records found.</td></tr>";
-                } else {
-                    response.forEach(function (record) {
-                        table_data += `<tr>
-                            <td>${record.attendance_date}</td>
-                            <td>${record.status}</td>
-                        </tr>`;
+                    if (!response.length) {
+                        $("#attendance_data").html("<p class='text-danger'>No attendance records found.</p>");
+                        return;
+                    }
+
+                    let table = `<table class='table table-bordered'><thead><tr>
+                        <th>Date</th><th>Schedule</th><th>Status</th><th>Subject</th>
+                    </tr></thead><tbody>`;
+
+                    response.forEach(function (r) {
+                        table += `<tr><td>${r.date}</td><td>${r.schedule}</td><td>${r.status}</td><td>${r.subject_name}</td></tr>`;
                     });
+
+                    table += "</tbody></table>";
+                    $("#attendance_data").html(table);
+                },
+                error: function () {
+                    toggleLoading(false);
+                    alert("Error fetching attendance.");
                 }
-                
-                table_data += "</tbody></table>";
-                $("#attendance_data").html(table_data);
-            })
-            .fail(function () {
-                alert("Error fetching attendance.");
-            })
-            .always(function () {
-                $("#fetch_attendance").text("Fetch Attendance").attr("disabled", false);
+            });
+        });
+
+        $("#download_attendance").click(function () {
+            const filters = getFilterData();
+
+            fetch("{% url 'student_download_attendance' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify(filters)
+            }).then(response => response.blob())
+              .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "my_attendance.xlsx";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
             });
         });
     });
 </script>
-{% endblock custom_js %}
+{% endblock %}

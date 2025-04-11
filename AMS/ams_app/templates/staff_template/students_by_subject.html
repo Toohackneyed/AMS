@@ -1,0 +1,52 @@
+{% extends 'staff_template/base_template.html' %}
+{% block page_title %}Students Enrolled per Subject{% endblock page_title %}
+
+{% block main_content %}
+<div class="container py-5">
+    <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-body">
+            <h2 class="mb-4 text-primary fw-bold">📘 Student Lists</h2>
+
+            <form method="get" class="row g-3 align-items-center mb-4">
+                <div class="col-md-8">
+                    <label for="subjectSelect" class="form-label">Choose Subject</label>
+                    <select name="subject_id" id="subjectSelect" class="form-select">
+                        <option value="">-- Select Subject --</option>
+                        {% for subject in subjects %}
+                            <option value="{{ subject.id }}" {% if subject.id|stringformat:"s" == selected_subject_id %}selected{% endif %}>
+                                {{ subject.subject_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> View Students
+                    </button>
+                </div>
+            </form>
+
+            {% if enrolled_students %}
+                <div class="mt-4">
+                    <h5 class="fw-semibold mb-3">Enrolled Students</h5>
+                    <ul class="list-group rounded-3 shadow-sm">
+                        {% for enrollment in enrolled_students %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>
+                                    <i class="bi bi-person-circle me-2 text-primary"></i>
+                                    {{ enrollment.student.admin.get_full_name }}
+                                </span>
+                                <span class="badge bg-secondary">{{ enrollment.student.id_number }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% elif selected_subject_id %}
+                <div class="alert alert-warning mt-4" role="alert">
+                    No students enrolled in this subject.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

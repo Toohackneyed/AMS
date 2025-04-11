@@ -27,7 +27,7 @@
                         <table class="table table-hover text-nowrap table-bordered" id="studentTable">
                             <thead class="thead-dark">
                                 <tr>
-                                    <th>ID</th>
+                                  
                                     <th>RFID</th>
                                     <th>Student ID</th>
                                     <th>Section</th>
@@ -46,7 +46,7 @@
                             <tbody>
                                 {% for student in students %}
                                 <tr>
-                                    <td>{{ student.admin.id }}</td>
+                                   
                                     <td>{{ student.rfid }}</td>
                                     <td>{{ student.id_number }}</td>
                                     <td>{{ student.section.section_name }}</td>

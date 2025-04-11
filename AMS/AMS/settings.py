@@ -43,6 +43,9 @@ STATIC_ROOT=os.path.join(BASE_DIR,"static")
 STATICFILES_DIRS = [
     BASE_DIR / "ams_app/static",
 ]
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
 
 # Application definition
 

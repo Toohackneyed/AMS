@@ -43,8 +43,8 @@
           </li>
 
           <li class="nav-item">
-            {% url 'staff_take_attendance' as staff_take_attendance %}
-            <a href="{{ staff_take_attendance }}" class="nav-link {% if request.path == staff_take_attendance %} active {% endif %}">
+            {% url 'staff_view_attendance' as staff_view_attendance %}
+            <a href="{{ staff_view_attendance }}" class="nav-link {% if request.path == staff_view_attendance %} active {% endif %}">
               <i class="nav-icon fas fa-user-check"></i>
               <p>Take Attendance</p>
             </a>
@@ -56,8 +56,14 @@
               <i class="nav-icon fas fa-edit"></i>
               <p>Update Attendance</p>
             </a>
-          </li>       
-
+          </li> 
+          <li class="nav-item">
+            {% url 'students_by_subject' as students_by_subject %}
+            <a href="{{ students_by_subject }}" class="nav-link {% if request.path == students_by_subject %} active {% endif %}">
+              <i class="nav-icon fas fa-users"></i>
+              <p>Student List</p>
+            </a>
+          </li>
         </ul>
       </nav>
       <!-- /.sidebar-menu -->

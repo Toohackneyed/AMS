@@ -9,6 +9,7 @@ from PIL import Image
 import numpy as np
 import io
 from django.db.models.signals import post_delete
+from django.utils.timezone import now
 
 class SessionYearModel(models.Model):
     id = models.AutoField(primary_key=True)
@@ -130,10 +131,9 @@ class Students(models.Model):
     def save(self, *args, **kwargs):
         if not self.face_encoding or self.face_encoding == "[]":
             encoding = self.generate_face_encoding()
-            self.face_encoding = encoding if encoding else []  # Ensure it's not NULL
+            self.face_encoding = json.dumps(encoding) if encoding else json.dumps([])  # Encode as JSON string
         
-        super().save(*args, **kwargs)  # Save after validation
-
+        super().save(*args, **kwargs)
     def generate_face_encoding(self):
         if not self.profile_pic:
             print("⚠️ No profile picture found!")
@@ -159,11 +159,10 @@ class Students(models.Model):
         if not self.face_encoding:
             return None
         try:
-            return json.loads(self.face_encoding)
+            return json.loads(self.face_encoding)  # Decode JSON properly
         except json.JSONDecodeError:
             print("⚠️ Error decoding face encoding JSON!")
             return None
-
 class Enrollment(models.Model):
     student = models.ForeignKey(Students, on_delete=models.CASCADE)
     subject = models.ForeignKey(Subjects, on_delete=models.CASCADE)
@@ -199,6 +198,13 @@ class AttendanceReport(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     objects = models.Manager()
+
+class ScannedRFID(models.Model):
+    tag = models.CharField(max_length=50, unique=True)
+    scanned_at = models.DateTimeField(default=now)  # Auto-record timestamp
+
+    def __str__(self):
+        return self.tag
 
 @receiver(post_save, sender=CustomUser)
 def create_user_profile(sender, instance, created, **kwargs):

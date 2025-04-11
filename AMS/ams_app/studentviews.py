@@ -5,7 +5,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404, render
 from ams_app.models import Attendance, AttendanceReport, CustomUser, Subjects, Students, SessionYearModel, SubjectSchedule, Courses
 from django.contrib.auth.decorators import login_required
-
+import json
+import pandas as pd
+from django.http import JsonResponse, HttpResponse
 
 @login_required
 def student_home(request):
@@ -48,62 +50,88 @@ def student_home(request):
     return render(request, "student_template/student_home_template.html", context)
 @login_required
 def student_view_attendance(request):
-    student = Students.objects.get(admin=request.user)  
-    subjects = Subjects.objects.filter(course=student.course_id)  # Hanapin ang subjects ng student
-    session_years = SessionYearModel.objects.all()  # Kunin lahat ng session years
-    schedules = SubjectSchedule.objects.filter(subject__in=subjects)  # Hanapin ang schedules ng subject na enrolled ang student
+    student = Students.objects.get(admin=request.user)
+    subjects = student.subjects.all()  # Assuming may M2M or related field ka dito
+    session_years = SessionYearModel.objects.all()
 
     context = {
-        "subjects": subjects,
-        "session_years": session_years,
-        "schedules": schedules 
+        'subjects': subjects,
+        'session_years': session_years
     }
-    
-    return render(request, 'student_template/student_view_attendance.html', context)
+    return render(request, "student_template/student_view_attendance.html", context)
+@csrf_exempt
+@login_required
+def student_get_attendance(request):
+    try:
+        data = json.loads(request.body)
+        student = Students.objects.get(admin=request.user)
 
-@csrf_exempt  # Temporary disable CSRF (for testing purposes)
-def get_attendance_data(request):
-    if request.method == "POST":
-        try:
-            subject_id = request.POST.get("subject")
-            session_year_id = request.POST.get("session_year")
-            schedule_id = request.POST.get("schedule")
-            attendance_scope = request.POST.get("attendance_scope")
-            start_date = request.POST.get("start_date")
-            end_date = request.POST.get("end_date")
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+        subject_id = data.get("subject")
+        session_year_id = data.get("session_year")
 
-            # Filter attendance based on scope (all weeks or specific week)
-            if attendance_scope == "specific" and start_date and end_date:
-                attendance_records = Attendance.objects.filter(
-                    subject_id=subject_id,
-                    session_year_id=session_year_id,
-                    schedule_id=schedule_id,
-                    attendance_date__range=[start_date, end_date]
-                )
-            else:
-                attendance_records = Attendance.objects.filter(
-                    subject_id=subject_id,
-                    session_year_id=session_year_id,
-                    schedule_id=schedule_id
-                )
+        filters = {
+            "student": student,
+            "attendance__attendance_date__range": (start_date, end_date),
+            "attendance__session_year_id": session_year_id
+        }
 
-            data = []
+        if subject_id:
+            filters["attendance__subject_id"] = subject_id
 
-            for attendance in attendance_records:
-                reports = AttendanceReport.objects.filter(attendance_id=attendance.id)
-                for report in reports:
-                    data.append({
-                        "student_name": report.student.admin.first_name + " " + report.student.admin.last_name,
-                        "attendance_date": attendance.attendance_date.strftime("%Y-%m-%d"),
-                        "status": "Present" if report.status else "Absent"
-                    })
+        attendance_reports = AttendanceReport.objects.filter(**filters).select_related(
+            'attendance__subject', 'attendance__schedule'
+        )
 
-            return JsonResponse(data, safe=False)
+        response_data = []
+        for report in attendance_reports:
+            attendance = report.attendance
+            response_data.append({
+                "date": str(attendance.attendance_date),
+                "schedule": f"{attendance.schedule.day_of_week} ({attendance.schedule.start_time} - {attendance.schedule.end_time})",
+                "status": report.status,
+                "subject_name": attendance.subject.subject_name
+            })
 
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse(response_data, safe=False)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
 
-    return JsonResponse({"error": "Invalid Request"}, status=400)
+@csrf_exempt
+@login_required
+def student_download_attendance(request):
+    try:
+        data = json.loads(request.body)
+        student = Students.objects.get(admin=request.user)
+
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+
+        attendance_reports = AttendanceReport.objects.filter(
+            student=student,
+            attendance__attendance_date__range=(start_date, end_date)
+        ).select_related('attendance__subject', 'attendance__schedule')
+
+        data_list = []
+        for report in attendance_reports:
+            attendance = report.attendance
+            data_list.append([
+                str(attendance.attendance_date),
+                f"{attendance.schedule.day_of_week} ({attendance.schedule.start_time} - {attendance.schedule.end_time})",
+                report.status,
+                attendance.subject.subject_name
+            ])
+
+        df = pd.DataFrame(data_list, columns=["Date", "Schedule", "Status", "Subject"])
+
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename="my_attendance.xlsx"'
+        df.to_excel(response, index=False)
+
+        return response
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
 
 def student_profile(request):
     user=CustomUser.objects.get(id=request.user.id)
@@ -132,3 +160,15 @@ def student_profile_save(request):
         except:
             messages.error(request, "Failed to Update Profile")
             return HttpResponseRedirect(reverse("student_profile"))
+
+@login_required
+def student_my_subjects(request):
+    student = Students.objects.get(admin=request.user)
+
+    subjects = student.subjects.all()
+
+    context = {
+        'subjects': subjects
+    }
+
+    return render(request, "student_template/student_my_subjects.html", context)

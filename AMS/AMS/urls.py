@@ -16,6 +16,7 @@ Including another URLconf
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path
+from django.contrib.auth import views as auth_views
 
 from ams_app import views, adminviews, staffviews, studentviews
 from AMS import settings
@@ -74,24 +75,32 @@ urlpatterns = [
     path("get_ongoing_subject/", adminviews.get_ongoing_subject, name="get_ongoing_subject"),
     path('api/rfid_tags/', adminviews.read_rfid_tag, name='get_rfid_tags'),
     path('api/rfid_username/', adminviews.get_rfid_username, name='get_rfid_username'),
+    path('reset-password/', auth_views.PasswordResetView.as_view(), name='reset_password'),
+    path('check_face_encoding_status/', adminviews.check_face_encoding_status, name='check_face_encoding_status'),
+        # Password Reset URLs
+    path('reset-password/', auth_views.PasswordResetView.as_view(), name='password_reset'),
+    path('reset-password/done/', auth_views.PasswordResetDoneView.as_view(), name='password_reset_done'),
+    path('reset-password-confirm/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
+    path('reset-password-complete/', auth_views.PasswordResetCompleteView.as_view(), name='password_reset_complete'),
 
                   #     Staff URL Path
     path('staff_home/', staffviews.staff_home, name="staff_home"),
-    path('staff_take_attendance/', staffviews.staff_take_attendance, name="staff_take_attendance"),
-    # path('filter_attendance', staffviews.filter_attendance, name="filter_attendance"),
-    path("staff_update_attendance", staffviews.staff_update_attendance, name="staff_update_attendance"),
-    path('save_attendance_data', staffviews.save_attendance_data, name="save_attendance_data"),
-    path('get_students', staffviews.get_students, name="get_students"),
-    # path('staff_view_attendance/', staffviews.staff_view_attendance, name='staff_view_attendance'),
+    path("staff/view-attendance/", staffviews.staff_view_attendance, name="staff_view_attendance"),
+    path("staff/get-attendance/", staffviews.staff_get_attendance, name="staff_get_attendance"),
+    path("staff/download-attendance/", staffviews.staff_download_attendance, name="staff_download_attendance"),
+    path("update-attendance/", staffviews.staff_update_attendance_view, name="staff_update_attendance"),
+    path("fetch-attendance-for-update/", staffviews.fetch_attendance_for_update, name="fetch_attendance_for_update"),
+    path("save-updated-attendance/", staffviews.save_updated_attendance, name="save_updated_attendance"),
     path('staff_profile', staffviews.staff_profile, name="staff_profile"),
     path('staff_profile_save', staffviews.staff_profile_save, name="staff_profile_save"),
-    path('download_attendance/', staffviews.download_attendance, name='download_attendance'),
-
+    path('students-by-subject/', staffviews.students_by_subject, name='students_by_subject'),
                  #      Students URL Path
     path('student_home/', studentviews.student_home, name="student_home"),
-    path('student_view_attendance/', studentviews.student_view_attendance, name='student_view_attendance'),
-    path("get_attendance_data", studentviews.get_attendance_data, name="get_attendance_data"),
+    path('student/view_attendance/', studentviews.student_view_attendance, name='student_view_attendance'),
+    path('student/get_attendance/', studentviews.student_get_attendance, name='student_get_attendance'),
+    path('student/download_attendance/', studentviews.student_download_attendance, name='student_download_attendance'),
     path('student_profile', studentviews.student_profile, name="student_profile"),
     path('student_profile_save', studentviews.student_profile_save, name="student_profile_save"),
+    path('student/my_subjects/', studentviews.student_my_subjects, name='student_my_subjects'),
     
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
