@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
+from django.utils.dateparse import parse_date
 
 from ams_app.models import SubjectSchedule, Subjects, SessionYearModel, Students, Attendance, AttendanceReport, \
      Staffs, CustomUser, Courses, Sections, Enrollment
@@ -21,23 +22,12 @@ from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
 
 @login_required
 def staff_home(request):
-    # Get all subjects assigned to the logged-in staff
     staff = Staffs.objects.get(admin=request.user.id)
     subjects = Subjects.objects.filter(staff=staff)
-
-    # Get all unique course IDs handled by the staff
     course_id_list = list(subjects.values_list('course_id', flat=True).distinct())
-
-    # Count total students under the staff
     students_count = Students.objects.filter(course_id__in=course_id_list).count()
-
-    # Count total attendance taken by staff
     attendance_count = Attendance.objects.filter(subject_id__in=subjects).count()
-
-    # Count total subjects handled by staff
     subject_count = subjects.count()
-
-    # Fetch student population per subject
     subject_list = []
     student_population_list = []
 
@@ -46,10 +36,8 @@ def staff_home(request):
         subject_list.append(subject.subject_name)
         student_population_list.append(student_count)
 
-    # Fetch attendance data per subject
     attendance_list = [Attendance.objects.filter(subject_id=subject.id).count() for subject in subjects]
 
-    # Prepare dashboard boxes
     dashboard_boxes = [
         {"value": subject_count, "label": "Total Subjects", "color": "bg-danger", "icon": "ion ion-stats-bars", "url": "#"},
         {"value": students_count, "label": "Total Students in My Subjects", "color": "bg-info", "icon": "ion ion-person-stalker", "url": "#"},
@@ -76,16 +64,13 @@ def get_sections_by_session_year(request):
         return JsonResponse(section_data, safe=False)
     return JsonResponse({'error': 'Invalid request'}, status=400)
 
-# ✅ Decorator for Staff-only access
 def staff_required(view_func):
     def wrapper(request, *args, **kwargs):
-        if request.user.user_type != '2':  # 2 = staff
+        if request.user.user_type != '2':
             return HttpResponseForbidden("Staff access only.")
         return view_func(request, *args, **kwargs)
     return wrapper
 
-
-# ✅ Staff View for Attendance Page
 @login_required
 @staff_required
 def staff_view_attendance(request):
@@ -103,68 +88,6 @@ def staff_view_attendance(request):
     }
     return render(request, "staff_template/staff_view_attendance.html", context)
 
-
-# ✅ Reused API: Get Attendance (with staff access check)
-@csrf_exempt
-@login_required
-@staff_required
-def staff_get_attendance(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            staff = Staffs.objects.get(admin=request.user)
-
-            subject_id = data.get("subject")
-            session_year_id = data.get("session_year")
-            schedule_id = data.get("schedule")
-            section_id = data.get("section")
-            start_date = data.get("start_date")
-            end_date = data.get("end_date")
-
-            # ✅ Ensure subject belongs to staff
-            if not Subjects.objects.filter(id=subject_id, staff=staff).exists():
-                return JsonResponse({"error": "Unauthorized access to subject."}, status=403)
-
-            attendance_filter = {
-                'subject_id': subject_id,
-                'session_year_id': session_year_id,
-                'attendance_date__range': (start_date, end_date)
-            }
-
-            if section_id:
-                attendance_filter['students__section_id'] = section_id
-
-            attendance_records = Attendance.objects.filter(**attendance_filter)\
-                .select_related("subject", "session_year", "schedule")\
-                .prefetch_related("attendancereport_set__student__admin")\
-                .distinct()
-
-            response_data = []
-            seen_attendance = set()
-
-            for attendance in attendance_records:
-                for report in attendance.attendancereport_set.all():
-                    student_name = f"{report.student.admin.first_name} {report.student.admin.last_name}"
-                    schedule_str = f"{attendance.schedule.day_of_week} ({attendance.schedule.start_time} - {attendance.schedule.end_time})"
-                    status = report.status
-
-                    key = (attendance.attendance_date, attendance.schedule_id, student_name)
-                    if key not in seen_attendance:
-                        seen_attendance.add(key)
-                        response_data.append({
-                            "student_name": student_name,
-                            "date": str(attendance.attendance_date),
-                            "schedule": schedule_str,
-                            "status": status,
-                            "subject_name": attendance.subject.subject_name
-                        })
-
-            return JsonResponse(response_data, safe=False)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
-
-
-# ✅ Reused API: Download Attendance (with staff access check)
 @csrf_exempt
 @login_required
 @staff_required
@@ -178,45 +101,71 @@ def staff_download_attendance(request):
             session_year_id = data.get("session_year")
             schedule_id = data.get("schedule")
             section_id = data.get("section")
-            start_date = data.get("start_date")
-            end_date = data.get("end_date")
+            start_date = parse_date(data.get("start_date"))
+            end_date = parse_date(data.get("end_date"))
+            get_all_schedules = data.get("get_all_schedules", False)
 
-            if not Subjects.objects.filter(id=subject_id, staff=staff).exists():
+            subject = Subjects.objects.get(id=subject_id)
+            if subject.staff != staff:
                 return JsonResponse({"error": "Unauthorized access to subject."}, status=403)
 
-            attendance_filter = {
-                'subject_id': subject_id,
-                'session_year_id': session_year_id,
-                'attendance_date__range': (start_date, end_date)
-            }
+            if get_all_schedules:
+                schedule_ids = SubjectSchedule.objects.filter(subject_id=subject_id).values_list("id", flat=True)
+            else:
+                schedule_ids = [schedule_id]
 
+            students = Students.objects.filter(
+                enrollment__subject_id=subject_id,
+                session_year_id=session_year_id
+            )
             if section_id:
-                attendance_filter['students__section_id'] = section_id
-
-            attendance_records = Attendance.objects.filter(**attendance_filter)\
-                .select_related("subject", "session_year", "schedule")\
-                .prefetch_related("attendancereport_set__student__admin")\
-                .distinct()
+                students = students.filter(section_id=section_id)
+            students = students.distinct()
 
             data_list = []
-            seen_attendance = set()
+            current_date = start_date
 
-            for attendance in attendance_records:
-                for report in attendance.attendancereport_set.all():
-                    student_name = f"{report.student.admin.first_name} {report.student.admin.last_name}"
-                    schedule_str = f"{attendance.schedule.day_of_week} ({attendance.schedule.start_time} - {attendance.schedule.end_time})"
-                    status = report.status
+            while current_date <= end_date:
+                for sched_id in schedule_ids:
+                    attendance = Attendance.objects.filter(
+                        subject_id=subject_id,
+                        session_year_id=session_year_id,
+                        schedule_id=sched_id,
+                        attendance_date=current_date
+                    ).first()
 
-                    key = (attendance.attendance_date, attendance.schedule_id, student_name)
-                    if key not in seen_attendance:
-                        seen_attendance.add(key)
-                        data_list.append([
-                            student_name,
-                            str(attendance.attendance_date),
-                            schedule_str,
-                            status,
-                            attendance.subject.subject_name
-                        ])
+                    attended_ids = set()
+
+                    if attendance:
+                        for report in attendance.attendancereport_set.all():
+                            student = report.student
+                            student_name = f"{student.admin.first_name} {student.admin.last_name}"
+                            schedule_str = f"{attendance.schedule.day_of_week} ({attendance.schedule.start_time} - {attendance.schedule.end_time})"
+                            status = report.status
+
+                            data_list.append([
+                                student_name,
+                                str(current_date),
+                                schedule_str,
+                                status,
+                                subject.subject_name
+                            ])
+                            attended_ids.add(student.id)
+
+                    schedule_obj = SubjectSchedule.objects.get(id=sched_id)
+                    schedule_str = f"{schedule_obj.day_of_week} ({schedule_obj.start_time} - {schedule_obj.end_time})"
+                    for student in students:
+                        if student.id not in attended_ids:
+                            student_name = f"{student.admin.first_name} {student.admin.last_name}"
+                            data_list.append([
+                                student_name,
+                                str(current_date),
+                                schedule_str,
+                                "Absent",
+                                subject.subject_name
+                            ])
+
+                current_date += timedelta(days=1)
 
             df = pd.DataFrame(data_list, columns=["Student Name", "Date", "Schedule", "Status", "Subject"])
 
@@ -230,71 +179,170 @@ def staff_download_attendance(request):
             return JsonResponse({"error": str(e)}, status=400)
 
 @login_required
+@staff_required
 def staff_update_attendance_view(request):
     staff = Staffs.objects.get(admin=request.user)
     subjects = Subjects.objects.filter(staff=staff)
     schedules = SubjectSchedule.objects.filter(subject__in=subjects)
+    session_years = SessionYearModel.objects.all()
+    current_session = SessionYearModel.objects.first()
 
     context = {
         'subjects': subjects,
-        'schedules': schedules
+        'schedules': schedules,
+        'session_years': session_years,
+        'current_session_id': current_session.id
     }
-    return render(request, "staff_template/staff_update_attendance.html", context)
+
+    return render(request, 'staff_template/staff_update_attendance.html', context)
+
 
 @csrf_exempt
 @login_required
-def fetch_attendance_for_update(request):
+@staff_required
+def staff_get_attendance(request):
     if request.method == "POST":
-        data = json.loads(request.body)
-        subject_id = data.get("subject")
-        schedule_id = data.get("schedule")
-        date = data.get("date")
+        try:
+            data = json.loads(request.body)
+            staff = Staffs.objects.get(admin=request.user)
 
-        staff = Staffs.objects.get(admin=request.user)
+            subject_id = data.get("subject")
+            session_year_id = data.get("session_year")
+            schedule_id = data.get("schedule")
+            section_id = data.get("section")
+            start_date = parse_date(data.get("start_date"))
+            end_date = parse_date(data.get("end_date"))
+            get_all_schedules = data.get("get_all_schedules", False)
 
-        # Secure check
-        if not Subjects.objects.filter(id=subject_id, staff=staff).exists():
-            return JsonResponse({"error": "Unauthorized access"}, status=403)
+            subject = Subjects.objects.get(id=subject_id)
+            if subject.staff != staff:
+                return JsonResponse({"error": "Unauthorized access to subject."}, status=403)
 
-        attendance = Attendance.objects.filter(subject_id=subject_id, schedule_id=schedule_id, attendance_date=date).first()
+            if get_all_schedules:
+                schedule_ids = SubjectSchedule.objects.filter(subject_id=subject_id).values_list("id", flat=True)
+            else:
+                schedule_ids = [schedule_id]
 
-        if not attendance:
-            return JsonResponse({"error": "No attendance record found for that date."}, status=404)
+            students = Students.objects.filter(
+                enrollment__subject_id=subject_id,
+                session_year_id=session_year_id
+            )
+            if section_id:
+                students = students.filter(section_id=section_id)
+            students = students.distinct()
 
-        reports = AttendanceReport.objects.filter(attendance=attendance).select_related("student__admin")
+            response_data = []
+            current_date = start_date
 
-        response_data = []
-        for r in reports:
-            student_name = f"{r.student.admin.first_name} {r.student.admin.last_name}"
-            response_data.append({
-                "report_id": r.id,
-                "student_name": student_name,
-                "status": r.status
-            })
+            while current_date <= end_date:
+                for sched_id in schedule_ids:
+                    schedule_obj = SubjectSchedule.objects.get(id=sched_id)
 
-        return JsonResponse({"reports": response_data})
+                    attendance = Attendance.objects.filter(
+                        subject_id=subject_id,
+                        session_year_id=session_year_id,
+                        schedule_id=sched_id,
+                        attendance_date=current_date
+                    ).first()
 
+                    attended_ids = set()
+                    reports_map = {}
+
+                    if attendance:
+                        reports = AttendanceReport.objects.filter(attendance=attendance)
+                        for report in reports:
+                            reports_map[report.student.id] = report
+                            attended_ids.add(report.student.id)
+
+                    for student in students:
+                        student_name = f"{student.admin.first_name} {student.admin.last_name}"
+
+                        if student.id in reports_map:
+                            report = reports_map[student.id]
+                            response_data.append({
+                                "student_name": student_name,
+                                "student_id": student.id,
+                                "status": report.status,
+                                "attendance_id": report.attendance.id,
+                                "subject_name": subject.subject_name,
+                                "schedule": f"{schedule_obj.day_of_week} ({schedule_obj.start_time} - {schedule_obj.end_time})",
+                                "date": str(current_date)
+                            })
+                        else:
+                            response_data.append({
+                                "student_name": student_name,
+                                "student_id": student.id,
+                                "status": "Absent",
+                                "attendance_id": attendance.id if attendance else None,
+                                "subject_name": subject.subject_name,
+                                "schedule": f"{schedule_obj.day_of_week} ({schedule_obj.start_time} - {schedule_obj.end_time})",
+                                "date": str(current_date)
+                            })
+
+                current_date += timedelta(days=1)
+
+            return JsonResponse(response_data, safe=False)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+@login_required
+@staff_required
 @csrf_exempt
 @login_required
+@staff_required
+@csrf_exempt
 def save_updated_attendance(request):
-    if request.method == "POST":
-        data = json.loads(request.body)
-        updates = data.get("updates")
+    try:
+        if request.method == "POST":
+            data = json.loads(request.body)
+            attendance_id = data.get("attendance_id")
+            student_id = data.get("student_id")
+            new_status = data.get("status")
+            subject_id = data.get("subject_id")
+            session_year_id = data.get("session_year_id")
+            schedule_id = data.get("schedule_id")
+            date = data.get("date")
 
-        for item in updates:
-            report_id = item.get("report_id")
-            new_status = item.get("status")
+            student = Students.objects.get(id=student_id)
 
-            report = get_object_or_404(AttendanceReport, id=report_id)
-            report.status = new_status
-            report.save()
+            if attendance_id:
+                attendance = Attendance.objects.get(id=attendance_id)
+            else:
+                attendance_date = parse_date(date)
+                subject = Subjects.objects.get(id=subject_id)
+                session_year = SessionYearModel.objects.get(id=session_year_id)
+                schedule = SubjectSchedule.objects.get(id=schedule_id)
 
-        return JsonResponse({"success": "Attendance updated successfully."})
+                attendance, created = Attendance.objects.get_or_create(
+                    subject=subject,
+                    session_year=session_year,
+                    schedule=schedule,
+                    attendance_date=attendance_date
+                )
+
+            report = AttendanceReport.objects.filter(attendance=attendance, student=student).first()
+            if report:
+                report.status = new_status
+                report.save()
+            else:
+                AttendanceReport.objects.create(
+                    student=student,
+                    attendance=attendance,
+                    status=new_status
+                )
+
+            return JsonResponse({"success": True})
+
+        return JsonResponse({"error": "Invalid request."}, status=400)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 @login_required
 def staff_profile(request):
-    user = request.user  # Get the logged-in user
-    staff = get_object_or_404(Staffs, admin=user)  # Ensures staff exists
+    user = request.user
+    staff = get_object_or_404(Staffs, admin=user)
     return render(request, "staff_template/staff_profile.html", {"user": user, "staff": staff})
 
 @login_required
@@ -307,14 +355,11 @@ def staff_profile_save(request):
     password = request.POST.get("password")
 
     try:
-        customuser = request.user  # Get the logged-in user
-        staff = get_object_or_404(Staffs, admin=customuser)  # Ensures staff exists
-
-        # Update user details
+        customuser = request.user 
+        staff = get_object_or_404(Staffs, admin=customuser)
         customuser.first_name = first_name
         customuser.last_name = last_name
 
-        # Update password only if it's provided
         if password and password.strip():
             customuser.set_password(password)
 
@@ -341,9 +386,9 @@ def students_by_subject(request):
             enrolled_students = Enrollment.objects.filter(subject=selected_subject).select_related('student')
 
     except Staffs.DoesNotExist:
-        subjects = []  # Staff not found = walang subject
+        subjects = []
     except Subjects.DoesNotExist:
-        enrolled_students = []  # Subject ID not owned by this staff
+        enrolled_students = []
 
     context = {
         'subjects': subjects,

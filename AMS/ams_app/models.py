@@ -194,17 +194,18 @@ class AttendanceReport(models.Model):
 
     student = models.ForeignKey(Students, on_delete=models.CASCADE)
     attendance = models.ForeignKey(Attendance, on_delete=models.CASCADE)
+    marked_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="Absent") 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     objects = models.Manager()
 
 class ScannedRFID(models.Model):
-    tag = models.CharField(max_length=50, unique=True)
-    scanned_at = models.DateTimeField(default=now)  # Auto-record timestamp
+    tag = models.CharField(max_length=100)
+    scanned_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.tag
+        return f"{self.tag} @ {self.scanned_at}"
 
 @receiver(post_save, sender=CustomUser)
 def create_user_profile(sender, instance, created, **kwargs):

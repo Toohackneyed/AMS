@@ -19,9 +19,17 @@
                 <label>Schedule</label>
                 <select id="schedule" class="form-control">
                     {% for schedule in schedules %}
-                        <option value="{{ schedule.id }}">{{ schedule.subject.subject_name }} - {{ schedule.day_of_week }} ({{ schedule.start_time }} - {{ schedule.end_time }})</option>
+                        <option value="{{ schedule.id }}" data-subject="{{ schedule.subject.id }}">
+                            {{ schedule.subject.subject_name }} - {{ schedule.day_of_week }} ({{ schedule.start_time }} - {{ schedule.end_time }})
+                        </option>
                     {% endfor %}
                 </select>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="get_all_schedules">
+                    <label class="form-check-label" for="get_all_schedules">
+                        Get All Schedules for Selected Subject
+                    </label>
+                </div>
             </div>
         </div>
 
@@ -42,15 +50,6 @@
                 <select id="session_year" class="form-control">
                     {% for session_year in session_years %}
                         <option value="{{ session_year.id }}">{{ session_year.session_start_date }} TO {{ session_year.session_end_date }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-6">
-                <label>Section</label>
-                <select id="section" class="form-control">
-                    <option value="">-- Select Section --</option>
-                    {% for section in sections %}
-                        <option value="{{ section.id }}">{{ section.section_name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -77,13 +76,22 @@
             }
         }
 
+        $("#subject").on("change", function () {
+            const selectedSubject = $(this).val();
+            $("#schedule option").each(function () {
+                const subjectId = $(this).data("subject");
+                $(this).toggle(subjectId == selectedSubject);
+            });
+            $("#schedule").val($("#schedule option:visible:first").val());
+        }).trigger("change");
+
         $("#fetch_attendance").click(function () {
-            let subject = $("#subject").val();
-            let session_year = $("#session_year").val();
-            let schedule = $("#schedule").val();
-            let section = $("#section").val();
-            let start_date = $("#start_date").val();
-            let end_date = $("#end_date").val();
+            const subject = $("#subject").val();
+            const session_year = $("#session_year").val();
+            const schedule = $("#schedule").val();
+            const start_date = $("#start_date").val();
+            const end_date = $("#end_date").val();
+            const get_all_schedules = $("#get_all_schedules").is(":checked");
 
             if (!subject || !session_year || !start_date || !end_date) {
                 alert("Please fill in all required fields.");
@@ -98,26 +106,41 @@
                 contentType: "application/json",
                 headers: { "X-CSRFToken": "{{ csrf_token }}" },
                 data: JSON.stringify({
-                    subject: subject,
-                    session_year: session_year,
-                    schedule: schedule,
-                    section: section,
-                    start_date: start_date,
-                    end_date: end_date
+                    subject,
+                    session_year,
+                    schedule,
+                    start_date,
+                    end_date,
+                    get_all_schedules
                 }),
                 success: function (response) {
                     toggleLoading(false);
-                    if (!response.length) {
-                        $("#attendance_data").html("<p class='text-danger'>No records found.</p>");
+                    if (!response || response.length === 0) {
+                        $("#attendance_data").html("<p class='text-danger'>No attendance records found.</p>");
                         return;
                     }
 
-                    let table = `<table class='table table-bordered'><thead><tr>
-                        <th>Student Name</th><th>Date</th><th>Schedule</th><th>Status</th><th>Subject</th>
-                        </tr></thead><tbody>`;
-                    response.forEach(function (r) {
-                        table += `<tr><td>${r.student_name}</td><td>${r.date}</td><td>${r.schedule}</td><td>${r.status}</td><td>${r.subject_name}</td></tr>`;
+                    let table = `<table class='table table-bordered'>
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Date</th>
+                                <th>Schedule</th>
+                                <th>Status</th>
+                                <th>Subject</th>
+                            </tr>
+                        </thead><tbody>`;
+
+                    response.forEach(function (record) {
+                        table += `<tr>
+                            <td>${record.student_name}</td>
+                            <td>${record.date}</td>
+                            <td>${record.schedule}</td>
+                            <td>${record.status}</td>
+                            <td>${record.subject_name}</td>
+                        </tr>`;
                     });
+
                     table += "</tbody></table>";
                     $("#attendance_data").html(table);
                 },
@@ -129,12 +152,12 @@
         });
 
         $("#download_attendance").click(function () {
-            let subject = $("#subject").val();
-            let session_year = $("#session_year").val();
-            let schedule = $("#schedule").val();
-            let section = $("#section").val();
-            let start_date = $("#start_date").val();
-            let end_date = $("#end_date").val();
+            const subject = $("#subject").val();
+            const session_year = $("#session_year").val();
+            const schedule = $("#schedule").val();
+            const start_date = $("#start_date").val();
+            const end_date = $("#end_date").val();
+            const get_all_schedules = $("#get_all_schedules").is(":checked");
 
             fetch("{% url 'staff_download_attendance' %}", {
                 method: "POST",
@@ -143,15 +166,16 @@
                     "X-CSRFToken": "{{ csrf_token }}"
                 },
                 body: JSON.stringify({
-                    subject: subject,
-                    session_year: session_year,
-                    schedule: schedule,
-                    section: section,
-                    start_date: start_date,
-                    end_date: end_date
+                    subject,
+                    session_year,
+                    schedule,
+                    start_date,
+                    end_date,
+                    get_all_schedules
                 })
-            }).then(response => response.blob())
-              .then(blob => {
+            })
+            .then(response => response.blob())
+            .then(blob => {
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = url;
@@ -159,6 +183,7 @@
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
+                window.URL.revokeObjectURL(url);
             });
         });
     });

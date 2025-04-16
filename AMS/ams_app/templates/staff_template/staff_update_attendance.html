@@ -4,10 +4,10 @@
 
 {% block main_content %}
 <div class="container mt-5">
-    <h3 class="mb-4">Update Attendance</h3>
+    <h3 class="mb-4">Update Student Attendance</h3>
     <div class="card p-4 shadow-sm">
         <div class="row mb-3">
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <label>Subject</label>
                 <select id="subject" class="form-control">
                     {% for subject in subjects %}
@@ -15,118 +15,143 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <label>Schedule</label>
                 <select id="schedule" class="form-control">
                     {% for schedule in schedules %}
-                        <option value="{{ schedule.id }}">{{ schedule.subject.subject_name }} - {{ schedule.day_of_week }} ({{ schedule.start_time }} - {{ schedule.end_time }})</option>
+                        <option value="{{ schedule.id }}" data-subject="{{ schedule.subject.id }}">
+                            {{ schedule.subject.subject_name }} - {{ schedule.day_of_week }} ({{ schedule.start_time }} - {{ schedule.end_time }})
+                        </option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-4">
-                <label>Date</label>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label>Attendance Date</label>
                 <input type="date" id="attendance_date" class="form-control">
             </div>
         </div>
 
-        <div class="text-center">
-            <button id="load_attendance" class="btn btn-primary">Load Attendance</button>
-        </div>
+        <button class="btn btn-primary mt-2" id="load_attendance">Load Attendance</button>
     </div>
 
     <div id="attendance_table" class="mt-4"></div>
-
-    <div class="text-end mt-3">
-        <button id="save_attendance" class="btn btn-success d-none">Save Changes</button>
-    </div>
 </div>
 {% endblock %}
 
 {% block custom_js %}
 <script>
-    let attendanceData = [];
+    $(document).ready(function () {
+        const sessionYearId = "{{ current_session_id }}";  // Ensure this is passed from context
 
-    $("#load_attendance").click(function () {
-        const subject = $("#subject").val();
-        const schedule = $("#schedule").val();
-        const date = $("#attendance_date").val();
+        function renderTable(data) {
+            let table = `<table class='table table-bordered'>
+                            <thead>
+                                <tr>
+                                    <th>Student Name</th>
+                                    <th>Status</th>
+                                    <th>Change To</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead><tbody>`;
 
-        if (!subject || !schedule || !date) {
-            alert("Please fill in all fields.");
-            return;
-        }
-
-        $("#attendance_table").html('<p>Loading...</p>');
-        $("#save_attendance").addClass("d-none");
-
-        fetch("{% url 'fetch_attendance_for_update' %}", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRFToken": "{{ csrf_token }}"
-            },
-            body: JSON.stringify({
-                subject: subject,
-                schedule: schedule,
-                date: date
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                $("#attendance_table").html(`<p class="text-danger">${data.error}</p>`);
-                return;
-            }
-
-            attendanceData = data.reports;
-            if (attendanceData.length === 0) {
-                $("#attendance_table").html("<p>No records found.</p>");
-                return;
-            }
-
-            let table = `<table class="table table-bordered"><thead><tr>
-                            <th>Student Name</th>
-                            <th>Status</th>
-                         </tr></thead><tbody>`;
-
-            attendanceData.forEach((item, index) => {
+            data.forEach(row => {
                 table += `<tr>
-                    <td>${item.student_name}</td>
+                    <td>${row.student_name}</td>
+                    <td>${row.status}</td>
                     <td>
-                        <select class="form-control status-select" data-index="${index}">
-                            <option value="Present" ${item.status === "Present" ? "selected" : ""}>Present</option>
-                            <option value="Absent" ${item.status === "Absent" ? "selected" : ""}>Absent</option>
-                            <option value="Late" ${item.status === "Late" ? "selected" : ""}>Late</option>
+                        <select class="form-control status-select" data-attendance-id="${row.attendance_id}" data-student-id="${row.student_id}">
+                            <option value="Present" ${row.status === "Present" ? "selected" : ""}>Present</option>
+                            <option value="Absent" ${row.status === "Absent" ? "selected" : ""}>Absent</option>
+                            <option value="Excused" ${row.status === "Excused" ? "selected" : ""}>Excused</option>
                         </select>
                     </td>
+                    <td><button class="btn btn-success btn-save-status">Save</button></td>
                 </tr>`;
             });
 
-            table += "</tbody></table>";
+            table += `</tbody></table>`;
             $("#attendance_table").html(table);
-            $("#save_attendance").removeClass("d-none");
-        });
-    });
+        }
 
-    $("#save_attendance").click(function () {
-        $(".status-select").each(function () {
-            const index = $(this).data("index");
-            attendanceData[index].status = $(this).val();
+        $("#load_attendance").click(function () {
+            const subject = $("#subject").val();
+            const schedule = $("#schedule").val();
+            const attendance_date = $("#attendance_date").val();
+
+            if (!subject || !schedule || !attendance_date) {
+                alert("Please fill in all fields.");
+                return;
+            }
+
+            $.ajax({
+                url: "{% url 'staff_get_attendance' %}",
+                type: "POST",
+                contentType: "application/json",
+                headers: { "X-CSRFToken": "{{ csrf_token }}" },
+                data: JSON.stringify({
+                    subject: subject,
+                    schedule: schedule,
+                    start_date: attendance_date,
+                    end_date: attendance_date,
+                    session_year: sessionYearId
+                }),
+                success: function (data) {
+                    if (data.length === 0) {
+                        $("#attendance_table").html("<p class='text-danger'>No attendance records found for this date.</p>");
+                    } else {
+                        renderTable(data);
+                    }
+                },
+                error: function () {
+                    alert("Error loading attendance.");
+                }
+            });
         });
 
-        fetch("{% url 'save_updated_attendance' %}", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRFToken": "{{ csrf_token }}"
-            },
-            body: JSON.stringify({ updates: attendanceData })
-        })
-        .then(response => response.json())
-        .then(data => {
-            alert(data.success || "Updated successfully!");
-            $("#save_attendance").addClass("d-none");
+        $("#attendance_table").on("click", ".btn-save-status", function () {
+            const select = $(this).closest("tr").find(".status-select");
+            const newStatus = select.val();
+            const studentId = select.data("student-id");
+            const attendanceId = select.data("attendance-id");
+
+            const subject = $("#subject").val();
+            const schedule = $("#schedule").val();
+            const attendanceDate = $("#attendance_date").val();
+
+            $.ajax({
+                url: "{% url 'save_updated_attendance' %}",
+                type: "POST",
+                contentType: "application/json",
+                headers: { "X-CSRFToken": "{{ csrf_token }}" },
+                data: JSON.stringify({
+                    student_id: studentId,
+                    attendance_id: attendanceId,
+                    status: newStatus,
+                    subject_id: subject,
+                    schedule_id: schedule,
+                    date: attendanceDate,
+                    session_year_id: sessionYearId
+                }),
+                success: function (response) {
+                    alert("Attendance updated successfully.");
+                },
+                error: function () {
+                    alert("Error updating attendance.");
+                }
+            });
         });
+
+        $("#subject").on("change", function () {
+            const selectedSubject = $(this).val();
+            $("#schedule option").each(function () {
+                const subjectId = $(this).data("subject");
+                $(this).toggle(subjectId == selectedSubject);
+            });
+            $("#schedule").val($("#schedule option:visible:first").val());
+        }).trigger("change");
     });
 </script>
 {% endblock %}

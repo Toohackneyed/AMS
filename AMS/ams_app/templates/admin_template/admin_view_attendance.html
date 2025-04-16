@@ -27,12 +27,16 @@ View Attendance
                                 <label class="fw-bold">Schedule</label>
                                 <select class="form-select" name="schedule" id="schedule">
                                     {% for schedule in schedules %}
-                                        <option value="{{ schedule.id }}">{{ schedule.subject.subject_name }} - {{ schedule.day_of_week }} ({{ schedule.start_time }} - {{ schedule.end_time }})</option>
+                                        <option value="{{ schedule.id }}" data-subject="{{ schedule.subject.id }}">
+                                            {{ schedule.subject.subject_name }} - {{ schedule.day_of_week }} ({{ schedule.start_time }} - {{ schedule.end_time }})
+                                        </option>
                                     {% endfor %}
                                 </select>
                                 <div class="form-check mt-2">
                                     <input class="form-check-input" type="checkbox" id="get_all_schedules">
-                                    <label class="form-check-label">Get All Schedules for Selected Subject</label>
+                                    <label class="form-check-label" for="get_all_schedules">
+                                        Get All Schedules for Selected Subject
+                                    </label>
                                 </div>
                             </div>
                         </div>
@@ -57,20 +61,11 @@ View Attendance
                                     {% endfor %}
                                 </select>
                             </div>
-                            <div class="col-md-6">
-                                <label class="fw-bold">Section</label>
-                                <select class="form-select" name="section" id="section">
-                                    <option value="">-- Select Section --</option>
-                                    {% for section in sections %}
-                                        <option value="{{ section.id }}">{{ section.section_name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
                         </div>
                     </div>
                     <div class="card-footer d-flex justify-content-between">
                         <button type="button" class="btn btn-primary" id="fetch_attendance"><i class="fas fa-search"></i> Fetch Attendance</button>
-                        <button id="download_attendance" class="btn btn-success"><i class="fas fa-download"></i> Download Attendance</button>
+                        <button type="button" id="download_attendance" class="btn btn-success"><i class="fas fa-download"></i> Download Attendance</button>
                     </div>
                     <div id="attendance_data" class="p-3"></div>
                 </div>
@@ -91,14 +86,28 @@ View Attendance
             }
         }
 
-        // 📌 Fetch Attendance Button
+        // 🔁 Auto-filter schedule options by subject
+        $("#subject").on("change", function () {
+            const selectedSubject = $(this).val();
+            $("#schedule option").each(function () {
+                const subjectId = $(this).data("subject");
+                if (subjectId == selectedSubject) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+            $("#schedule").val($("#schedule option:visible:first").val());
+        }).trigger("change");
+
+        // 📌 Fetch Attendance
         $("#fetch_attendance").click(function () {
-            var subject = $("#subject").val();
-            var session_year = $("#session_year").val();
-            var schedule = $("#schedule").val();
-            var section = $("#section").val();
-            var start_date = $("#start_date").val();
-            var end_date = $("#end_date").val();
+            const subject = $("#subject").val();
+            const session_year = $("#session_year").val();
+            const schedule = $("#schedule").val();
+            const start_date = $("#start_date").val();
+            const end_date = $("#end_date").val();
+            const get_all_schedules = $("#get_all_schedules").is(":checked");
 
             if (!subject || !session_year || !start_date || !end_date) {
                 alert("Please select all required fields.");
@@ -113,16 +122,14 @@ View Attendance
                 contentType: 'application/json',
                 headers: { "X-CSRFToken": "{{ csrf_token }}" },
                 data: JSON.stringify({
-                    subject: subject,
-                    session_year: session_year,
-                    schedule: schedule,
-                    section: section,
-                    start_date: start_date,
-                    end_date: end_date
+                    subject,
+                    session_year,
+                    schedule,
+                    start_date,
+                    end_date,
+                    get_all_schedules
                 }),
                 success: function (response) {
-                    console.log("✅ Debug: Response Data", response);
-
                     toggleLoading(false);
 
                     if (!response || response.length === 0) {
@@ -130,27 +137,27 @@ View Attendance
                         return;
                     }
 
-                    var table_data = `
+                    let table_data = `
                         <table class='table table-bordered'>
                             <thead>
                                 <tr>
                                     <th>Student Name</th>
                                     <th>Date</th>
                                     <th>Schedule</th>
-                                    <th>Status</th>  <!-- ✅ Binalik ang Status -->
+                                    <th>Status</th>
                                     <th>Subject</th>
                                     <th>Instructor</th>
                                 </tr>
                             </thead>
                             <tbody>`;
 
-                    response.forEach(function (record) {
+                    response.forEach(record => {
                         table_data += `
                             <tr>
                                 <td>${record.student_name}</td>
                                 <td>${record.date}</td>
                                 <td>${record.schedule}</td>
-                                <td>${record.status}</td>  <!-- ✅ Dapat kasama ang Status -->
+                                <td>${record.status}</td>
                                 <td>${record.subject_name}</td>
                                 <td>${record.instructor_name}</td>
                             </tr>`;
@@ -159,36 +166,30 @@ View Attendance
                     table_data += "</tbody></table>";
                     $("#attendance_data").html(table_data);
                 },
-                error: function (xhr, status, error) {
-                    console.log("❌ Error: ", error);
-                    console.log("❌ Response: ", xhr.responseText);
+                error: function (xhr) {
                     toggleLoading(false);
                     alert("Error fetching attendance.");
+                    console.error("❌", xhr.responseText);
                 }
             });
         });
 
-        // 📌 Download Attendance Button
+        // 📥 Download Attendance
         $("#download_attendance").click(function () {
-            var subject = $("#subject").val();
-            var session_year = $("#session_year").val();
-            var schedule = $("#schedule").val();
-            var section = $("#section").val();
-            var start_date = $("#start_date").val();
-            var end_date = $("#end_date").val();
+            const subject = $("#subject").val();
+            const session_year = $("#session_year").val();
+            const schedule = $("#schedule").val();
+            const start_date = $("#start_date").val();
+            const end_date = $("#end_date").val();
+            const get_all_schedules = $("#get_all_schedules").is(":checked");
 
-            if (!subject || !session_year || !start_date || !end_date) {
-                alert("Please select all required fields.");
-                return;
-            }
-
-            var requestData = JSON.stringify({
-                subject: subject,
-                session_year: session_year,
-                schedule: schedule,
-                section: section,
-                start_date: start_date,
-                end_date: end_date
+            const requestData = JSON.stringify({
+                subject,
+                session_year,
+                schedule,
+                start_date,
+                end_date,
+                get_all_schedules
             });
 
             fetch("{% url 'download_attendance' %}", {
@@ -200,18 +201,17 @@ View Attendance
                 body: requestData
             })
             .then(response => {
-                if (response.ok) {
-                    return response.blob();
-                }
-                throw new Error("Error downloading file.");
+                if (response.ok) return response.blob();
+                throw new Error("Download failed.");
             })
             .then(blob => {
-                var url = window.URL.createObjectURL(blob);
-                var a = document.createElement("a");
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
                 a.href = url;
                 a.download = "attendance.xlsx";
                 document.body.appendChild(a);
                 a.click();
+                a.remove();
                 window.URL.revokeObjectURL(url);
             })
             .catch(error => {

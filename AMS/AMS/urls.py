@@ -73,8 +73,10 @@ urlpatterns = [
     path("get_sections_by_session_year/", adminviews.get_sections_by_session_year, name="get_sections_by_session_year"),
     path("download_attendance/", adminviews.download_attendance, name="download_attendance"),
     path("get_ongoing_subject/", adminviews.get_ongoing_subject, name="get_ongoing_subject"),
-    path('api/rfid_tags/', adminviews.read_rfid_tag, name='get_rfid_tags'),
-    path('api/rfid_username/', adminviews.get_rfid_username, name='get_rfid_username'),
+    path("scan_rfid/", adminviews.scan_rfid, name="scan_rfid"),
+    path("api/rfid-scan/", adminviews.save_rfid_tag, name="save_rfid_tag"),
+
+
     path('reset-password/', auth_views.PasswordResetView.as_view(), name='reset_password'),
     path('check_face_encoding_status/', adminviews.check_face_encoding_status, name='check_face_encoding_status'),
         # Password Reset URLs
@@ -88,9 +90,8 @@ urlpatterns = [
     path("staff/view-attendance/", staffviews.staff_view_attendance, name="staff_view_attendance"),
     path("staff/get-attendance/", staffviews.staff_get_attendance, name="staff_get_attendance"),
     path("staff/download-attendance/", staffviews.staff_download_attendance, name="staff_download_attendance"),
-    path("update-attendance/", staffviews.staff_update_attendance_view, name="staff_update_attendance"),
-    path("fetch-attendance-for-update/", staffviews.fetch_attendance_for_update, name="fetch_attendance_for_update"),
-    path("save-updated-attendance/", staffviews.save_updated_attendance, name="save_updated_attendance"),
+    path('update-attendance/', staffviews.staff_update_attendance_view, name='staff_update_attendance'),
+    path('save-updated-attendance/', staffviews.save_updated_attendance, name='save_updated_attendance'),
     path('staff_profile', staffviews.staff_profile, name="staff_profile"),
     path('staff_profile_save', staffviews.staff_profile_save, name="staff_profile_save"),
     path('students-by-subject/', staffviews.students_by_subject, name='students_by_subject'),

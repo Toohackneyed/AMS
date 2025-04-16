@@ -1,103 +1,94 @@
 {% extends 'student_template/base_template.html' %}
 
-{% block page_title %}Home{% endblock page_title %}
+{% block page_title %}Student Dashboard{% endblock page_title %}
 
 {% block main_content %}
 <section class="content">
     <div class="container-fluid">
+
         {% if class_room.count > 0 %}
-        <div class="row">
-            <div class="col-lg-12 form-group">
+        <div class="card bg-light mb-4 shadow">
+            <div class="card-body">
+                <h5 class="card-title">Live Classes</h5>
                 {% for class_single in class_room %}
-                <a href="/join_class_room/{{ class_single.subject.id }}/{{ class_single.session_years.id }}" class="btn btn-success">
-                    JOIN LIVE CLASS of {{ class_single.subject.subject_name }}
-                </a>
+                    <a href="/join_class_room/{{ class_single.subject.id }}/{{ class_single.session_years.id }}" class="btn btn-success mb-2">
+                        Join {{ class_single.subject.subject_name }}
+                    </a>
                 {% endfor %}
             </div>
         </div>
         {% endif %}
 
         <div class="row">
-            <div class="col-lg-3 col-6">
-                <div class="small-box bg-info">
-                    <div class="inner">
-                        <h3>{{ total_attendance }}</h3>
-                        <p>Total Attendance</p>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-info shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ total_attendance }}</h5>
+                        <p class="card-text">Total Attendance</p>
                     </div>
-                    <div class="icon">
-                        <i class="ion ion-stats-bars"></i>
+                    <div class="card-footer">
+                        <a href="{% url 'student_view_attendance' %}" class="text-white">View Details</a>
                     </div>
-                    <a href="{% url 'student_view_attendance' %}" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
                 </div>
             </div>
-            <div class="col-lg-3 col-6">
-                <div class="small-box bg-success">
-                    <div class="inner">
-                        <h3>{{ attendance_present }}</h3>
-                        <p>Present</p>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-success shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ attendance_present }}</h5>
+                        <p class="card-text">Present</p>
                     </div>
-                    <div class="icon">
-                        <i class="ion ion-checkmark"></i>
+                    <div class="card-footer">
+                        <a href="{% url 'student_view_attendance' %}" class="text-white">View Details</a>
                     </div>
-                    <a href="{% url 'student_view_attendance' %}" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
                 </div>
             </div>
-            <div class="col-lg-3 col-6">
-                <div class="small-box bg-warning">
-                    <div class="inner">
-                        <h3>{{ attendance_absent }}</h3>
-                        <p>Absent</p>
+            <div class="col-md-3 mb-3">
+                <div class="card text-dark bg-warning shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ attendance_absent }}</h5>
+                        <p class="card-text">Absent</p>
                     </div>
-                    <div class="icon">
-                        <i class="ion ion-close"></i>
+                    <div class="card-footer">
+                        <a href="{% url 'student_view_attendance' %}" class="text-dark">View Details</a>
                     </div>
-                    <a href="{% url 'student_view_attendance' %}" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
                 </div>
             </div>
-            <div class="col-lg-3 col-6">
-                <div class="small-box bg-danger">
-                    <div class="inner">
-                        <h3>{{ subjects }}</h3>
-                        <p>Total Subjects</p>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-danger shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ subjects }}</h5>
+                        <p class="card-text">Total Subjects</p>
                     </div>
-                    <div class="icon">
-                        <i class="ion ion-book"></i>
+                    <div class="card-footer">
+                        <a href="{% url 'student_my_subjects' %}" class="text-white">View Subjects</a>
                     </div>
-                    <a href="#" class="small-box-footer">&nbsp;</a>
                 </div>
             </div>
         </div>
 
-        <div class="row">
-            <div class="col-lg-6">
-                <div class="card card-danger">
-                    <div class="card-header">
-                        <h3 class="card-title">Attendance Chart</h3>
-                        <div class="card-tools">
-                            <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-minus"></i></button>
-                            <button type="button" class="btn btn-tool" data-card-widget="remove"><i class="fas fa-times"></i></button>
-                        </div>
+        <div class="row mt-4">
+            <div class="col-md-6 mb-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-danger text-white">
+                        Attendance Distribution
                     </div>
                     <div class="card-body">
-                        <canvas id="pieChart" style="height: 250px; max-width: 100%;"></canvas>
+                        <canvas id="pieChart" height="200"></canvas>
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6">
-                <div class="card card-success">
-                    <div class="card-header">
-                        <h3 class="card-title">Attendance Statistics</h3>
-                        <div class="card-tools">
-                            <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-minus"></i></button>
-                            <button type="button" class="btn btn-tool" data-card-widget="remove"><i class="fas fa-times"></i></button>
-                        </div>
+            <div class="col-md-6 mb-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        Subject-wise Statistics
                     </div>
                     <div class="card-body">
-                        <canvas id="barChart" style="height: 250px; max-width: 100%;"></canvas>
+                        <canvas id="barChart" height="200"></canvas>
                     </div>
                 </div>
             </div>
         </div>
+
     </div>
 </section>
 {% endblock main_content %}
@@ -105,28 +96,50 @@
 {% block custom_js %}
 <script>
 $(document).ready(function(){
-    var subjects = {{ data_name|safe }};
-    var data1 = {{ data1 }};
-    var data2 = {{ data2 }};
+    const subjects = {{ data_name|safe }};
+    const data1 = {{ data1 }};
+    const data2 = {{ data2 }};
 
-    var pieData = {
-        labels: ['ABSENT', 'PRESENT', 'TOTAL'],
+    const pieData = {
+        labels: ['Absent', 'Present', 'Total'],
         datasets: [{
             data: [{{ attendance_absent }}, {{ attendance_present }}, {{ total_attendance }}],
             backgroundColor: ['#f56954', '#00a65a', '#ffc107']
         }]
     };
 
-    var barChartData = {
+    const barChartData = {
         labels: subjects,
         datasets: [
-            { label: 'Present', backgroundColor: 'rgba(60,141,188,0.9)', data: data1 },
-            { label: 'Absent', backgroundColor: 'rgba(210, 214, 222, 1)', data: data2 }
+            {
+                label: 'Present',
+                backgroundColor: 'rgba(60,141,188,0.9)',
+                data: data1
+            },
+            {
+                label: 'Absent',
+                backgroundColor: 'rgba(210, 214, 222, 1)',
+                data: data2
+            }
         ]
     };
 
-    new Chart($('#pieChart').get(0).getContext('2d'), { type: 'pie', data: pieData });
-    new Chart($('#barChart').get(0).getContext('2d'), { type: 'bar', data: barChartData });
+    new Chart($('#pieChart').get(0).getContext('2d'), {
+        type: 'pie',
+        data: pieData
+    });
+
+    new Chart($('#barChart').get(0).getContext('2d'), {
+        type: 'bar',
+        data: barChartData,
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'top' },
+                title: { display: true, text: 'Attendance by Subject' }
+            }
+        }
+    });
 });
 </script>
 {% endblock custom_js %}
