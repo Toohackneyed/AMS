@@ -1035,11 +1035,17 @@ def auto_mark_attendance_live(request):
                     return JsonResponse({"error": "RFID tag file error"}, status=500)
 
                 # Remove tag after use
-                if stored_rfid in tags:
-                    tags.remove(stored_rfid)
-                    with open("rfid_tags.txt", "w") as file:
-                        file.write("\n".join(tags))
-                    print(f"🗑️ Removed RFID {stored_rfid} from rfid_tags.txt")
+                # ✅ Require BOTH face match AND RFID presence
+                if stored_rfid not in tags:
+                    print(f"❌ RFID tag {stored_rfid} not detected for {matched_student.admin.get_full_name()}")
+                    return JsonResponse({"error": "RFID tag not detected or already used"}, status=400)
+
+                # Remove tag after successful attendance
+                tags.remove(stored_rfid)
+                with open("rfid_tags.txt", "w") as file:
+                    file.write("\n".join(tags))
+                print(f"🗑️ Removed RFID {stored_rfid} from rfid_tags.txt after successful attendance")
+
 
                 now_time = timezone.now().time()
                 start_time = subject_schedule.start_time
