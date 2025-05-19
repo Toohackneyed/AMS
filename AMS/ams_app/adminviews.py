@@ -44,6 +44,7 @@ import re
 import csv
 from celery.result import AsyncResult
 import traceback
+import requests
 from datetime import datetime 
 from .tasks import process_face_encoding
 from ams_app.models import CustomUser, SessionTimeModel, Staffs, Courses, Subjects,Sections, Students, SessionYearModel, SubjectSchedule, Attendance, AttendanceReport, Enrollment, ScannedRFID
@@ -97,7 +98,7 @@ def admin_home(request):
     }
     return render(request, "admin_template/home_content.html", context)
 
-# Adding Staff or Instructor ----------------------------------------------------------------------
+# Adding Staff or Instructor ==================================================================================================================================
 
 def add_staff(request):
     return render(request,"admin_template/add_staff_template.html")
@@ -136,7 +137,7 @@ def add_staff_save(request):
             messages.error(request, f"Failed to Add Staff: {str(e)}")
             return HttpResponseRedirect(reverse("add_staff"))
 
-# Adding Course ---------------------------------------------------------------------------------------------------------------------------------
+# Adding Course ==================================================================================================================================
 
 def add_course(request):
     return render(request,"admin_template/add_course_template.html")
@@ -155,7 +156,7 @@ def add_course_save(request):
             messages.error(request,"Failed To Add Course")
             return HttpResponseRedirect(reverse("add_course"))
         
-# Adding Student Sections ---------------------------------------------------------------------------------------------------------------------------------
+# Adding Student Sections ==================================================================================================================================
 
 def add_section(request):
     return render(request,"admin_template/add_section_template.html")
@@ -174,7 +175,7 @@ def add_section_save(request):
             messages.error(request,"Failed To Add Section")
             return HttpResponseRedirect(reverse("add_section"))
 
-# Adding Students ---------------------------------------------------------------------------------------------------------------------------------
+# Adding Students ==================================================================================================================================
 
 logger = logging.getLogger(__name__)
 
@@ -182,11 +183,25 @@ def get_subjects_by_course(request):
     course_ids = request.GET.get("courses")
     if not course_ids:
         return JsonResponse({"subjects": []})
-    
-    course_ids = course_ids.split(",")
-    subjects = Subjects.objects.filter(course__id__in=course_ids).values("id", "subject_name")
 
-    return JsonResponse({"subjects": list(subjects)})
+    course_ids = course_ids.split(",")
+    subjects = Subjects.objects.filter(course__id__in=course_ids).prefetch_related('schedules')
+
+    subject_list = []
+    for subject in subjects:
+        # Format schedule with AM/PM
+        schedule_strs = []
+        for schedule in subject.schedules.all():
+            start = schedule.start_time.strftime('%I:%M %p')  # e.g. 08:00 AM
+            end = schedule.end_time.strftime('%I:%M %p')      # e.g. 10:00 AM
+            schedule_strs.append(f"{schedule.day_of_week} {start} - {end}")
+
+        subject_list.append({
+            "id": subject.id,
+            "subject_name": f"{subject.subject_name} — {' | '.join(schedule_strs) if schedule_strs else 'No Schedule'}"
+        })
+
+    return JsonResponse({"subjects": subject_list})
 
 def add_student(request):
     form = AddStudentForm()
@@ -223,9 +238,12 @@ def add_student_save(request):
             course_id = form.cleaned_data["course"]
             gender = form.cleaned_data["gender"]
             profile_pic = request.FILES.get("profile_pic")
-            
+
+            # ✅ Get multiple selected courses and subjects
+            selected_courses = request.POST.getlist("courses")
             selected_subjects = request.POST.getlist("subjects")
 
+            # Create user
             user = CustomUser.objects.create_user(
                 username=username,
                 password=password,
@@ -243,6 +261,7 @@ def add_student_save(request):
             student.gender = gender
             student.section = Sections.objects.get(id=section_id)
 
+            # Profile picture processing
             if profile_pic:
                 compressed_image = compress_image(profile_pic)
                 if compressed_image:
@@ -254,8 +273,12 @@ def add_student_save(request):
                 logger.warning("⚠️ No profile picture found!")
 
             student.save()
+
+            # ✅ Save many-to-many relationships
+            student.selected_courses.set(Courses.objects.filter(id__in=selected_courses))
             student.subjects.set(selected_subjects)
 
+            # Face encoding (if profile pic exists)
             if profile_pic:
                 process_face_encoding.delay(student.id, profile_pic.read())
                 messages.success(request, "Student added successfully! Face encoding is being processed.")
@@ -266,8 +289,9 @@ def add_student_save(request):
 
         except Exception as e:
             messages.error(request, f"Failed to Add Student: {str(e)}")
-            return redirect(reverse("add_student"))         
+            return redirect(reverse("add_student"))
 
+    # If form is not valid
     return render(request, "admin_template/add_student_template.html", {"form": form})
 
 def check_face_encoding_status(request, task_id):
@@ -302,7 +326,7 @@ def fix_base64_face_encodings():
         except Exception as e:
             print(f"⚠️ Skipped student {student.id} due to error: {e}")
 
-# Adding Subjects ---------------------------------------------------------------------------------------------------------------------------------
+# Adding Subjects ==================================================================================================================================
 
 def add_subject(request):
     courses=Courses.objects.all()
@@ -355,7 +379,7 @@ def add_subject_save(request):
 
         return redirect("add_subject")
 
-# Managing Information ---------------------------------------------------------------------------------------------------------------------------------
+# Managing Information ==================================================================================================================================
 
 def manage_staff(request):
     staffs = Staffs.objects.all() 
@@ -367,11 +391,6 @@ def manage_student(request):
 
     if selected_subjects:
         students = students.filter(enrollment_set__subject__id__in=selected_subjects).distinct()
-
-    for student in students:
-        print(f"Student: {student.admin.first_name} {student.admin.last_name}")
-        for enrollment in student.enrollment_set.all():
-            print(f"  Subject: {enrollment.subject.subject_name}")
 
     return render(request, "admin_template/manage_student_template.html", {"students": students})
 
@@ -392,37 +411,45 @@ def edit_staff(request,staff_id):
     return render(request,"admin_template/edit_staff_template.html",{"staff":staff,"id":staff_id})
 
 def edit_staff_save(request):
-    if request.method!="POST":
+    if request.method != "POST":
         return HttpResponse("<h2>Method Not Allowed</h2>")
     else:
-        staff_id=request.POST.get("staff_id")
-        first_name=request.POST.get("first_name")
-        last_name=request.POST.get("last_name")
-        email=request.POST.get("email")
-        username=request.POST.get("username")
-        rfid=request.POST.get("rfid")
+        staff_id = request.POST.get("staff_id")
+        first_name = request.POST.get("first_name")
+        last_name = request.POST.get("last_name")
+        email = request.POST.get("email")
+        username = request.POST.get("username")
+        rfid = request.POST.get("rfid")
+        new_password = request.POST.get("password")
 
         try:
-            user=CustomUser.objects.get(id=staff_id)
-            user.first_name=first_name
-            user.last_name=last_name
-            user.email=email
-            user.username=username
+            user = CustomUser.objects.get(id=staff_id)
+            user.first_name = first_name
+            user.last_name = last_name
+            user.email = email
+            user.username = username
+
+            # ✅ Set new password if provided
+            if new_password:
+                user.set_password(new_password)
+
             user.save()
 
-            staff_model=Staffs.objects.get(admin=staff_id)
-            staff_model.rfid=rfid
+            staff_model = Staffs.objects.get(admin=staff_id)
+            staff_model.rfid = rfid
             staff_model.save()
-            messages.success(request,"Successfully Edited Staff")
-            return HttpResponseRedirect(reverse("edit_staff",kwargs={"staff_id":staff_id}))
-        except:
-            messages.error(request,"Failed to Edit Staff")
-            return HttpResponseRedirect(reverse("edit_staff",kwargs={"staff_id":staff_id}))
+
+            messages.success(request, "Successfully Edited Staff")
+            return HttpResponseRedirect(reverse("edit_staff", kwargs={"staff_id": staff_id}))
+        except Exception as e:
+            messages.error(request, f"Failed to Edit Staff: {str(e)}")
+            return HttpResponseRedirect(reverse("edit_staff", kwargs={"staff_id": staff_id}))
 
 def edit_student(request, student_id):
     student = Students.objects.get(admin=student_id)
 
-    selected_courses_ids = list(student.selected_courses.values_list("id", flat=True))
+    selected_courses = student.selected_courses.all()
+    selected_courses_ids = list(selected_courses.values_list("id", flat=True))
     enrolled_subjects = list(Enrollment.objects.filter(student=student).values("subject__id", "subject__subject_name"))
 
     form = EditStudentForm(initial={
@@ -444,9 +471,11 @@ def edit_student(request, student_id):
         "all_courses": Courses.objects.all(),
         "sections": Sections.objects.all(), 
         "selected_courses_ids": selected_courses_ids,
-        "enrolled_subjects": enrolled_subjects,  
+        "selected_courses": selected_courses,
+        "enrolled_subjects": enrolled_subjects,
     }
     return render(request, "admin_template/edit_student_template.html", context)
+
 
 def edit_student_save(request):
     if request.method != "POST":
@@ -457,7 +486,7 @@ def edit_student_save(request):
     main_course_id = request.POST.get("course_id")
     selected_course_ids = request.POST.getlist("selected_courses")
     subject_ids = request.POST.getlist("subjects")
-    section = request.POST.get("section") 
+    section_id = request.POST.get("section")
 
     email = request.POST.get("email")
     first_name = request.POST.get("first_name")
@@ -466,34 +495,38 @@ def edit_student_save(request):
     id_number = request.POST.get("id_number")
     rfid = request.POST.get("rfid")
     gender = request.POST.get("gender")
-    section_id = request.POST.get("section")
+    new_password = request.POST.get("password")
 
     try:
         with transaction.atomic():
             student = get_object_or_404(Students, admin=student_id)
-            
-            student.admin.email = email
-            student.admin.first_name = first_name
-            student.admin.last_name = last_name
-            student.admin.username = username
+
+            user = student.admin
+            user.email = email
+            user.first_name = first_name
+            user.last_name = last_name
+            user.username = username
+
+            if new_password:
+                user.set_password(new_password)
+            user.save()
+
             student.id_number = id_number
             student.rfid = rfid
             student.gender = gender
-            student.admin.save() 
-            student.save()
-
             student.course = Courses.objects.get(id=main_course_id) if main_course_id else None
-            student.selected_courses.set(Courses.objects.filter(id__in=selected_course_ids))
-
             student.section = get_object_or_404(Sections, id=section_id)
             student.save()
+
+            student.selected_courses.set(Courses.objects.filter(id__in=selected_course_ids))
 
             current_subjects = set(Enrollment.objects.filter(student=student).values_list("subject_id", flat=True))
             new_subjects = set(map(int, subject_ids))
 
-            Enrollment.objects.bulk_create(
-                [Enrollment(student=student, subject_id=subj_id) for subj_id in new_subjects - current_subjects]
-            )
+            Enrollment.objects.bulk_create([
+                Enrollment(student=student, subject_id=subj_id)
+                for subj_id in new_subjects - current_subjects
+            ])
             Enrollment.objects.filter(student=student, subject_id__in=current_subjects - new_subjects).delete()
 
         messages.success(request, "Student updated successfully")
@@ -502,6 +535,16 @@ def edit_student_save(request):
     except Exception as e:
         messages.error(request, f"Error: {str(e)}")
         return redirect("edit_student", student_id=student_id)
+
+
+# ➕ View for subjects based on selected courses
+def get_subjects_by_course(request):
+    course_ids = request.GET.get("courses", "")
+    course_ids = [int(cid) for cid in course_ids.split(",") if cid.isdigit()]
+    subjects = Subjects.objects.filter(course__id__in=course_ids).distinct()
+
+    subject_list = [{"id": s.id, "subject_name": s.subject_name} for s in subjects]
+    return JsonResponse({"subjects": subject_list})
 
 def edit_subject(request, subject_id):
     subject = Subjects.objects.prefetch_related("schedules").get(id=subject_id)
@@ -691,6 +734,12 @@ def get_attendance(request):
             else:
                 schedule_ids = [schedule_id]
 
+            # Get schedule objects to match days
+            schedule_objs = SubjectSchedule.objects.filter(id__in=schedule_ids)
+            schedule_day_map = {
+                sched.id: sched.day_of_week for sched in schedule_objs
+            }
+
             enrolled_students = Students.objects.filter(
                 enrollment__subject_id=subject_id,
                 session_year_id=session_year_id
@@ -700,11 +749,15 @@ def get_attendance(request):
 
             current_date = start_date
             while current_date <= end_date:
-                for sched_id in schedule_ids:
+                weekday_str = current_date.strftime("%A")  # E.g., 'Monday'
+                for sched in schedule_objs:
+                    if sched.day_of_week != weekday_str:
+                        continue  # Skip dates that don't match the schedule's day
+
                     attendance = Attendance.objects.filter(
                         subject_id=subject_id,
                         session_year=session_year_id,
-                        schedule_id=sched_id,
+                        schedule_id=sched.id,
                         attendance_date=current_date
                     ).first()
 
@@ -719,7 +772,7 @@ def get_attendance(request):
                             response_data.append({
                                 "student_name": student_name,
                                 "date": str(current_date),
-                                "schedule": f"{attendance.schedule.day_of_week} ({attendance.schedule.start_time} - {attendance.schedule.end_time})",
+                                "schedule": f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})",
                                 "status": status,
                                 "subject_name": subject.subject_name,
                                 "instructor_name": f"{subject.staff.admin.first_name} {subject.staff.admin.last_name}"
@@ -728,28 +781,25 @@ def get_attendance(request):
                         for student in enrolled_students:
                             if student.id not in attended_student_ids:
                                 student_name = f"{student.admin.first_name} {student.admin.last_name}"
-                                schedule_obj = SubjectSchedule.objects.get(id=sched_id)
                                 response_data.append({
                                     "student_name": student_name,
                                     "date": str(current_date),
-                                    "schedule": f"{schedule_obj.day_of_week} ({schedule_obj.start_time} - {schedule_obj.end_time})",
+                                    "schedule": f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})",
                                     "status": "Absent",
                                     "subject_name": subject.subject_name,
                                     "instructor_name": f"{subject.staff.admin.first_name} {subject.staff.admin.last_name}"
                                 })
                     else:
-                        schedule_obj = SubjectSchedule.objects.get(id=sched_id)
                         for student in enrolled_students:
                             student_name = f"{student.admin.first_name} {student.admin.last_name}"
                             response_data.append({
                                 "student_name": student_name,
                                 "date": str(current_date),
-                                "schedule": f"{schedule_obj.day_of_week} ({schedule_obj.start_time} - {schedule_obj.end_time})",
+                                "schedule": f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})",
                                 "status": "Absent",
                                 "subject_name": subject.subject_name,
                                 "instructor_name": f"{subject.staff.admin.first_name} {subject.staff.admin.last_name}"
                             })
-
                 current_date += timedelta(days=1)
 
             return JsonResponse(response_data, safe=False)
@@ -772,9 +822,12 @@ def download_attendance(request):
             get_all_schedules = data.get("get_all_schedules", False)
 
             if get_all_schedules:
-                schedule_ids = SubjectSchedule.objects.filter(subject_id=subject_id).values_list("id", flat=True)
+                schedule_objs = SubjectSchedule.objects.filter(subject_id=subject_id)
             else:
-                schedule_ids = [schedule_id]
+                schedule_objs = SubjectSchedule.objects.filter(id=schedule_id)
+
+            if not schedule_objs.exists():
+                return JsonResponse({"error": "No schedules found."}, status=400)
 
             subject = Subjects.objects.select_related('staff__admin').get(id=subject_id)
             instructor_name = f"{subject.staff.admin.first_name} {subject.staff.admin.last_name}"
@@ -788,11 +841,16 @@ def download_attendance(request):
             current_date = start_date
 
             while current_date <= end_date:
-                for sched_id in schedule_ids:
+                weekday_str = current_date.strftime("%A")  # Get current day's name
+
+                for sched in schedule_objs:
+                    if sched.day_of_week != weekday_str:
+                        continue  # Skip dates that do not match the schedule's day
+
                     attendance = Attendance.objects.filter(
                         subject_id=subject_id,
-                        session_year_id=session_year_id,
-                        schedule_id=sched_id,
+                        session_year=session_year_id,
+                        schedule_id=sched.id,
                         attendance_date=current_date
                     ).first()
 
@@ -802,7 +860,7 @@ def download_attendance(request):
                         for report in attendance.attendancereport_set.all():
                             student = report.student
                             student_name = f"{student.admin.first_name} {student.admin.last_name}"
-                            schedule_str = f"{attendance.schedule.day_of_week} ({attendance.schedule.start_time} - {attendance.schedule.end_time})"
+                            schedule_str = f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})"
                             status = report.status
 
                             data_list.append([
@@ -815,11 +873,7 @@ def download_attendance(request):
                             ])
                             attended_ids.add(student.id)
 
-                    try:
-                        schedule_obj = SubjectSchedule.objects.get(id=sched_id)
-                        schedule_str = f"{schedule_obj.day_of_week} ({schedule_obj.start_time} - {schedule_obj.end_time})"
-                    except SubjectSchedule.DoesNotExist:
-                        schedule_str = "Unknown Schedule"
+                    schedule_str = f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})"
 
                     for student in students:
                         if student.id not in attended_ids:
@@ -832,7 +886,6 @@ def download_attendance(request):
                                 subject.subject_name,
                                 instructor_name
                             ])
-
                 current_date += timedelta(days=1)
 
             if not data_list:
@@ -860,8 +913,6 @@ def admin_profile_save(request):
     if request.method != "POST":
         return HttpResponseRedirect(reverse("admin_profile"))
     else:
-        first_name = request.POST.get("first_name")
-        last_name = request.POST.get("last_name")
         username = request.POST.get("username")
         email = request.POST.get("email")
         current_password = request.POST.get("current_password")
@@ -869,12 +920,8 @@ def admin_profile_save(request):
 
         try:
             customuser = CustomUser.objects.get(id=request.user.id)
-
             customuser.username = username
             customuser.email = email
-
-            customuser.first_name = first_name
-            customuser.last_name = last_name
 
             if new_password:
                 if customuser.check_password(current_password):
@@ -959,7 +1006,7 @@ def face_recognition_attendance(request):
     """Render the Face Recognition Attendance page."""
     return render(request, "admin_template/face_recognition_attendance.html")
 
-#Face Recognition----------------------------------------------------------------------------------------------------------------------------------------
+#Face Recognition==================================================================================================================================
 
 @csrf_exempt
 def auto_mark_attendance_live(request):
@@ -996,7 +1043,7 @@ def auto_mark_attendance_live(request):
 
         img = cv2.resize(img, (320, 240))
         rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        face_locations = face_recognition.face_locations(rgb_img, model='cnn')
+        face_locations = face_recognition.face_locations(rgb_img, model='hog')
         face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
 
         if not face_encodings:
@@ -1040,12 +1087,14 @@ def auto_mark_attendance_live(request):
                     print(f"❌ RFID tag {stored_rfid} not detected for {matched_student.admin.get_full_name()}")
                     return JsonResponse({"error": "RFID tag not detected or already used"}, status=400)
 
-                # Remove tag after successful attendance
-                tags.remove(stored_rfid)
-                with open("rfid_tags.txt", "w") as file:
-                    file.write("\n".join(tags))
-                print(f"🗑️ Removed RFID {stored_rfid} from rfid_tags.txt after successful attendance")
-
+                # 👉 Mark RFID as used but don't remove it yet
+                used_tag_path = "used_rfid_tags.txt"
+                try:
+                    with open(used_tag_path, "a") as used_file:
+                        used_file.write(f"{stored_rfid}\n")
+                    print(f"📝 Marked RFID {stored_rfid} as used (temporary)")
+                except Exception as e:
+                    print(f"⚠️ Failed to mark RFID as used: {e}")
 
                 now_time = timezone.now().time()
                 start_time = subject_schedule.start_time
@@ -1101,145 +1150,6 @@ def auto_mark_attendance_live(request):
         print(f"⚡ ERROR: Exception processing image -> {e}")
         return JsonResponse({"error": "Error processing image"}, status=500)
 
-def delete_rfid_after_classes():
-    while True:
-        now_time = now().time()
-        now_day = now().strftime('%A')
-        schedules = SubjectSchedule.objects.filter(day_of_week=now_day)
-
-        if not schedules.exists():
-            clear_rfid_tags()
-        else:
-            last_end_time = max(schedule.end_time for schedule in schedules)
-            if now_time > last_end_time:
-                clear_rfid_tags()
-        
-        time.sleep(60) 
-
-threading.Thread(target=delete_rfid_after_classes, daemon=True).start()
-
-RFID_FILE = "rfid_tags.txt"
-
-def clear_rfid_tags():
-    try:
-        with open(RFID_FILE, "w") as file:
-            file.write("")
-        print("🧹 RFID tags cleared from file.")
-    except Exception as e:
-        print(f"⚠️ Failed to clear RFID tags: {e}")
-
-
-@csrf_exempt
-def scan_rfid(request):
-    if request.method == "POST":
-        tag = request.POST.get("tag")
-        if not tag:
-            return JsonResponse({"status": "failed", "message": "Tag is missing"})
-
-        try:
-            # Read existing tags
-            if os.path.exists(RFID_FILE):
-                with open(RFID_FILE, "r") as file:
-                    existing_tags = file.read().splitlines()
-            else:
-                existing_tags = []
-
-            if tag in existing_tags:
-                print(f"🔁 Duplicate tag ignored: {tag}")
-                return JsonResponse({"status": "warning", "message": "Duplicate tag"})
-
-            # Save new tag
-            with open(RFID_FILE, "a") as file:
-                file.write(tag + "\n")
-            print(f"✅ New RFID tag saved to file: {tag}")
-            return JsonResponse({"status": "success", "message": "Tag saved"})
-
-        except Exception as e:
-            print(f"⚠️ Error saving RFID tag: {e}")
-            return JsonResponse({"status": "error", "message": str(e)})
-
-    return JsonResponse({"status": "failed", "message": "Invalid request method."})
-
-@csrf_exempt
-def save_rfid_tag(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            tag = data.get("tag", "")
-
-            if not tag:
-                return JsonResponse({"error": "Missing tag"}, status=400)
-
-            # Read existing tags
-            if os.path.exists(RFID_FILE):
-                with open(RFID_FILE, "r") as file:
-                    tags = file.read().splitlines()
-            else:
-                tags = []
-
-            if tag in tags:
-                return JsonResponse({"status": "warning", "message": "Duplicate tag"}, status=200)
-
-            # Append tag with timestamp
-            timestamp = now().strftime("%Y-%m-%d %H:%M:%S")
-            with open(RFID_FILE, "a") as file:
-                file.write(f"{tag}|{timestamp}\n")
-
-            print(f"✅ Saved new tag: {tag}")
-            return JsonResponse({"status": "success"}, status=201)
-
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-    return JsonResponse({"error": "Invalid method"}, status=405)
-
-
-def remove_rfid_tag(tag):
-    try:
-        if not os.path.exists(RFID_FILE):
-            return
-
-        with open(RFID_FILE, "r") as file:
-            lines = file.readlines()
-
-        with open(RFID_FILE, "w") as file:
-            for line in lines:
-                if not line.strip().startswith(tag):
-                    file.write(line)
-
-        print(f"🗑️ Removed tag from file: {tag}")
-    except Exception as e:
-        print(f"⚠️ Failed to remove tag {tag}: {e}")
-
-
-def cleanup_old_rfid_tags(max_age_minutes=30):
-    try:
-        if not os.path.exists(RFID_FILE):
-            return
-
-        cutoff = now() - timedelta(minutes=max_age_minutes)
-        new_lines = []
-
-        with open(RFID_FILE, "r") as file:
-            for line in file:
-                parts = line.strip().split("|")
-                if len(parts) != 2:
-                    continue
-                tag, timestamp = parts
-                try:
-                    tag_time = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-                    if tag_time >= cutoff:
-                        new_lines.append(line)
-                except:
-                    continue  # skip invalid lines
-
-        with open(RFID_FILE, "w") as file:
-            file.writelines(new_lines)
-
-        print(f"🧹 Cleaned up old tags older than {max_age_minutes} minutes.")
-    except Exception as e:
-        print(f"⚠️ Failed to cleanup tags: {e}")
-
 def get_ongoing_subject(request):
     current_time = now().time()
     today = now().strftime("%A") 
@@ -1264,7 +1174,7 @@ def get_ongoing_subject(request):
     last_class = subjects_today.last()
     if last_class and current_time > last_class.end_time:
         print("✅ DEBUG: All classes for today have ended. Clearing RFID tags...")
-        clear_rfid_tags()  # Call the function to clear the file
+        clear_used_rfid_tags()
         return JsonResponse({"message": "All scheduled classes for today have ended."}, status=200)
 
     # ✅ Search for the next class only after the current one ends
@@ -1282,155 +1192,116 @@ def get_ongoing_subject(request):
     print("🚨 ERROR: No ongoing or upcoming class found!")
     return JsonResponse({"error": "No ongoing class at the moment."}, status=404)
 
-#RFID Attendance----------------------------------------------------------------------------------------------------------------------------------------
+#RFID Attendance ==================================================================================================================================
 
-active_port = None
+RFID_FILE = "rfid_tags.txt"
 serial_lock = threading.Lock()
 is_reading = False
-RFID_FILE = "rfid_tags.txt"
-
+active_port = None
 
 def find_uhf_reader_port():
+    """Hanapin ang CH340 port ng RFID reader."""
     ports = serial.tools.list_ports.comports()
-    for port in ports:
-        if "CH340" in port.description or "UHF" in port.description:
-            return port.device
+    for p in ports:
+        if "CH340" in p.description or "usb-serial" in p.description:
+            print(f"✅ Found RFID Reader on {p.device}")
+            return p.device
+    print("❌ RFID Reader not found. Retrying...")
     return None
 
-
 def clean_rfid_data(data):
-    return re.sub(r'[^\w]', '', data)
-
+    """Linisin ang RFID data."""
+    return re.sub(r'[^\d]', '', data)  # Keep only numbers
 
 def read_rfid_tag(port):
     global is_reading, active_port
     seen_tags = set()
 
     try:
-        with open(RFID_FILE, "r") as file:
-            seen_tags = set(line.strip().split("|")[0] for line in file if line.strip())
-    except FileNotFoundError:
-        pass
+        if os.path.exists(RFID_FILE):
+            with open(RFID_FILE, "r") as file:
+                seen_tags = set(line.strip() for line in file if line.strip())
+                print(f"📁 Loaded {len(seen_tags)} existing tags from file.")
+        else:
+            print("📂 No existing file found, starting fresh.")
+    except Exception as e:
+        print(f"⚠️ Error loading existing tags: {e}")
 
-    while True:
+    while is_reading:
         try:
             with serial_lock:
                 rfid_reader = serial.Serial(port, 9600, timeout=1)
-                print(f"📡 Connected to {port}. Listening for RFID tags...")
+            print(f"📡 Connected to {port}. Listening for RFID tags...")
 
-                while True:
-                    if rfid_reader.in_waiting > 0:
-                        raw_data = rfid_reader.read(rfid_reader.in_waiting).decode('utf-8', errors='ignore')
-                        lines = raw_data.strip().splitlines()
+            while is_reading:
+                if rfid_reader.in_waiting > 0:
+                    raw_data = rfid_reader.read(rfid_reader.in_waiting).decode('utf-8', errors='ignore')
+                    lines = raw_data.strip().splitlines()
 
-                        for line in lines:
-                            tag = clean_rfid_data(line)
-                            if tag and tag not in seen_tags:
-                                print(f"🏷️ New Unique Tag: {tag}")
-                                seen_tags.add(tag)
+                    for line in lines:
+                        print(f"🔎 Raw line: {line}")
+                        tag = clean_rfid_data(line)
 
-                                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                try:
-                                    with open(RFID_FILE, "a") as file:
-                                        file.write(f"{tag}|{timestamp}\n")
-                                except Exception as e:
-                                    print(f"📁 File write error: {e}")
+                        if tag and tag not in seen_tags:
+                            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            print(f"🏷️ New Tag Detected: {tag} at {timestamp}")
+                            seen_tags.add(tag)
 
-                            else:
-                                print(f"🔁 Duplicate Tag: {tag}")
-
-                    time.sleep(0.1)
+                            with open(RFID_FILE, "a") as file:
+                                file.write(f"{tag}\n")
+                        else:
+                            print(f"🔁 Duplicate or empty tag: {tag}")
+                time.sleep(0.2)
 
         except serial.SerialException as e:
-            print(f"⚠️ Serial error: {e} - attempting reconnect...")
-            try:
-                rfid_reader.close()
-            except:
-                pass
+            print(f"⚠️ Serial Error: {e}. Retrying in 3 seconds...")
             time.sleep(3)
-
         except Exception as e:
-            print(f"💥 Unexpected error: {e}")
-            time.sleep(5)
-
+            print(f"⚠️ Unexpected error: {e}")
+            time.sleep(3)
         finally:
             is_reading = False
             active_port = None
-            break
+            print("🛑 Stopped reading from RFID reader.")
+
+def clear_used_rfid_tags():
+    try:
+        with open("used_rfid_tags.txt", "r") as used_file:
+            used_tags = set(used_file.read().splitlines())
+        with open("rfid_tags.txt", "r") as rfid_file:
+            all_tags = rfid_file.read().splitlines()
+        # Remove only the used ones
+        remaining_tags = [tag for tag in all_tags if tag not in used_tags]
+        with open("rfid_tags.txt", "w") as file:
+            file.write("\n".join(remaining_tags))
+        open("used_rfid_tags.txt", "w").close()  # Clear the used file
+        print("🧹 RFID cleanup complete: removed used tags")
+    except Exception as e:
+        print(f"⚠️ Error clearing used RFID tags: {e}")
 
 
-def scan_for_reader():
-    global is_reading, active_port
-
+def delete_rfid_after_classes():
+    """I-clear ang RFID tags tuwing walang ongoing na klase."""
     while True:
-        com_port = find_uhf_reader_port()
+        now_time = datetime.now().time()
+        now_day = datetime.now().strftime('%A')
 
-        if com_port:
-            if com_port != active_port and not is_reading:
-                print(f"🔍 Found available reader on {com_port}. Trying to connect...")
-                active_port = com_port
-                is_reading = True
-                threading.Thread(target=read_rfid_tag, args=(com_port,), daemon=True).start()
+        # Dummy logic: session ends at 5:00 PM everyday.
+        end_time = datetime.strptime("17:00", "%H:%M").time()
+
+        if now_time > end_time:
+            clear_used_rfid_tags()
         else:
-            print("🔄 UHF RFID reader not found. Rescanning in 5 seconds...")
+            print("⏳ Still within session time. Tags preserved.")
 
-        time.sleep(5)
+        time.sleep(60)
 
-
-def start_rfid_reader():
-    thread = threading.Thread(target=scan_for_reader, daemon=True)
-    thread.start()
-
-
-def cleanup_old_rfid_tags(max_age_minutes=30):
-    try:
-        if not os.path.exists(RFID_FILE):
-            return
-
-        cutoff = datetime.now() - timedelta(minutes=max_age_minutes)
-        new_lines = []
-
-        with open(RFID_FILE, "r") as file:
-            for line in file:
-                parts = line.strip().split("|")
-                if len(parts) != 2:
-                    continue
-                tag, timestamp = parts
-                try:
-                    tag_time = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-                    if tag_time >= cutoff:
-                        new_lines.append(line)
-                except:
-                    continue
-
-        with open(RFID_FILE, "w") as file:
-            file.writelines(new_lines)
-
-        print(f"🧹 Cleaned up tags older than {max_age_minutes} minutes.")
-
-    except Exception as e:
-        print(f"⚠️ Cleanup error: {e}")
-
-
-@csrf_exempt
-def debug_rfid_tags(request):
-    try:
-        if not os.path.exists(RFID_FILE):
-            return JsonResponse({"rfids": []})
-
-        with open(RFID_FILE, "r") as file:
-            lines = file.readlines()[-5:]
-
-        tags = []
-        for line in lines:
-            if "|" in line:
-                tag, timestamp = line.strip().split("|")
-                tags.append({"tag": tag, "scanned_at": timestamp})
-
-        return JsonResponse({"rfids": tags})
-
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-
+# Start RFID reader and auto-clear system
 if __name__ == "__main__":
-    start_rfid_reader()
+    threading.Thread(target=delete_rfid_after_classes, daemon=True).start()
+    print("📡 RFID System Running... Press Ctrl+C to stop.")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n🛑 Program terminated by user.")

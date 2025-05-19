@@ -1,6 +1,8 @@
 from django import forms
 from ams_app.models import Courses, SessionYearModel, Subjects, Students, Sections
 from django.forms import ChoiceField
+from django.forms import NumberInput
+
 
 class ChoiceNoValidation(ChoiceField):
     def validate(self, value):
@@ -20,15 +22,15 @@ class AddStudentForm(forms.Form):
             (ses.id, f"{ses.session_start_date} TO {ses.session_end_date}") for ses in SessionYearModel.objects.all()
         ]
 
-    email = forms.EmailField(label="Email", max_length=50, widget=forms.EmailInput(attrs={"class": "form-control"}))
-    password = forms.CharField(label="Password", max_length=50, widget=forms.PasswordInput(attrs={"class": "form-control"}))
-    first_name = forms.CharField(label="First Name", max_length=50, widget=forms.TextInput(attrs={"class": "form-control"}))
-    last_name = forms.CharField(label="Last Name", max_length=50, widget=forms.TextInput(attrs={"class": "form-control"}))
-    username = forms.CharField(label="Username", max_length=50, widget=forms.TextInput(attrs={"class": "form-control"}))
-    id_number = forms.CharField(label="Student ID", max_length=50, widget=forms.TextInput(attrs={"class": "form-control"}))
-    rfid = forms.CharField(label="RFID", max_length=50, widget=forms.TextInput(attrs={"class": "form-control"}))
+    email = forms.EmailField(label="Email", max_length=50, widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "Enter email address"}))
+    password = forms.CharField(label="Password", max_length=50, widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Enter password"}))
+    first_name = forms.CharField(label="First Name", max_length=50, widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter first name"}))
+    last_name = forms.CharField(label="Last Name", max_length=50, widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter last name"}))
+    username = forms.CharField(label="Username", max_length=50, widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter username"}))
+    id_number = forms.CharField(label="Student ID", max_length=50, widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter student ID"}))
+    rfid = forms.IntegerField(label="RFID", widget=forms.NumberInput(attrs={"class": "form-control", "placeholder": "Enter RFID"}))
 
-    gender_choices = (("Male", "Male"), ("Female", "Female"))
+    gender_choices = (("Male", "Male"), ("Female", "Female"))   
     gender = forms.ChoiceField(label="Gender", choices=gender_choices, widget=forms.Select(attrs={"class": "form-control"}))
 
     course = forms.ChoiceField(label="Course", choices=[], widget=forms.Select(attrs={"class": "form-control"}))
@@ -61,13 +63,13 @@ class EditStudentForm(forms.Form):
         if student_instance:
             self.fields['section'].initial = student_instance.section  # Set the default section
 
-    email = forms.EmailField(label="Email", max_length=50, widget=forms.EmailInput(attrs={"class": "form-control"}))
-    first_name = forms.CharField(label="First Name", max_length=50, widget=forms.TextInput(attrs={"class": "form-control"}))
-    last_name = forms.CharField(label="Last Name", max_length=50, widget=forms.TextInput(attrs={"class": "form-control"}))
-    username = forms.CharField(label="Username", max_length=50, widget=forms.TextInput(attrs={"class": "form-control"}))
-    id_number = forms.CharField(label="Student ID", max_length=50, widget=forms.TextInput(attrs={"class": "form-control"}))
-    rfid = forms.CharField(label="RFID", max_length=50, widget=forms.TextInput(attrs={"class": "form-control"}))
-
+    email = forms.EmailField(label="Email", max_length=50, widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "Enter email address"}))
+    first_name = forms.CharField(label="First Name", max_length=50, widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter first name"}))
+    last_name = forms.CharField(label="Last Name", max_length=50, widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter last name"}))
+    username = forms.CharField(label="Username", max_length=50, widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter username"}))
+    id_number = forms.CharField(label="Student ID", max_length=50, widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter student ID"}))
+    rfid = forms.IntegerField(label="RFID", widget=forms.NumberInput(attrs={"class": "form-control", "placeholder": "Enter RFID"}))
+    
     gender_choices = (("Male", "Male"), ("Female", "Female"))
     gender = forms.ChoiceField(label="Gender", choices=gender_choices, widget=forms.Select(attrs={"class": "form-control"}))
 

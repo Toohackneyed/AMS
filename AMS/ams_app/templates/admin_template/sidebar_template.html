@@ -2,7 +2,7 @@
 <aside class="main-sidebar sidebar-dark-primary elevation-4" style="background: linear-gradient(135deg, #0a0f2c, #1b2a49); box-shadow: 4px 4px 10px rgba(0, 212, 255, 0.2);">
     <!-- Brand Logo -->
     <a href="index3.html" class="brand-link">
-        <img src="{% static 'dist/img/Logo.png' %}" alt="IdentiTech Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
+        <img src="{% static 'dist/img/Logo.png' %}" alt="IdentiTech Logo" class="brand-image elevation-3" style="opacity: .9">
         <span class="brand-text font-weight-light" style="color: #00d4ff; text-shadow: 0 0 10px #00d4ff;">IdentiTech</span>
     </a>
 
@@ -11,15 +11,15 @@
         <!-- Sidebar user panel (optional) -->
         <div class="user-panel mt-3 pb-3 mb-3 d-flex">
             <div class="image">
-                <img src="{% static 'dist/img/Logo.png' %}" class="img-circle elevation-2" alt="User Image">
+                <img src="https://img.freepik.com/premium-vector/user-icon-icon_1076610-59410.jpg?w=360" class="img-circle elevation-2" alt="User Image">
             </div>
             <div class="info">
-                <a href="{% url 'admin_profile' %}" class="d-block" style="color: #00d4ff;">{{ user.username }}</a>
+                <a href="{% url 'admin_profile' %}" class="d-block" style="color: #ffffff;"><strong>{{ user.username }}</strong></a>
             </div>
         </div>
 
         <!-- SidebarSearch Form -->
-        <div class="form-inline">
+        <!-- <div class="form-inline">
             <div class="input-group" data-widget="sidebar-search">
                 <input class="form-control form-control-sidebar" type="search" placeholder="Search" aria-label="Search" style="border-radius: 8px; border: 1px solid #00d4ff; background: rgba(255, 255, 255, 0.1); color: white;">
                 <div class="input-group-append">
@@ -28,7 +28,7 @@
                     </button>
                 </div>
             </div>
-        </div>
+        </div> -->
 
         <!-- Sidebar Menu -->
         <nav class="mt-2">
@@ -44,7 +44,7 @@
 
                 <li class="nav-item">
                     {% url 'manage_staff' as manage_staff %}
-                    <a href="{% url 'manage_staff' %}" class="nav-link {% if request.path == manage_staff %} active {% endif %}">
+                    <a href="{% url 'manage_staff' %}" class="nav-link {% if 'manage_staff' in request.path or 'add_staff' in request.path or 'edit_staff' in request.path %} active {% endif %}">
                         <i class="nav-icon fas fa-user-tie" style="color: #00d4ff;"></i>
                         <p>Manage Staff</p>
                     </a>
@@ -52,7 +52,7 @@
 
                 <li class="nav-item">
                     {% url 'manage_student' as manage_student %}
-                    <a href="{% url 'manage_student' %}" class="nav-link {% if request.path == manage_student %} active {% endif %}">
+                    <a href="{% url 'manage_student' %}" class="nav-link {% if 'manage_student' in request.path or 'add_student' in request.path or 'edit_student' in request.path %} active {% endif %}">
                         <i class="nav-icon fas fa-user-graduate" style="color: #00d4ff;"></i>
                         <p>Manage Student</p>
                     </a>
@@ -60,15 +60,15 @@
 
                 <li class="nav-item">
                     {% url 'manage_course' as manage_course %}
-                    <a href="{% url 'manage_course' %}" class="nav-link {% if request.path == manage_course %} active {% endif %}">
+                    <a href="{% url 'manage_course' %}" class="nav-link {% if 'manage_course' in request.path or 'add_course' in request.path or 'edit_course' in request.path %} active {% endif %}">
                         <i class="nav-icon fas fa-book" style="color: #00d4ff;"></i>
                         <p>Manage Course</p>
                     </a>
-                </li>
+                </li>                
 
                 <li class="nav-item">
                     {% url 'manage_section' as manage_section %}
-                    <a href="{% url 'manage_section' %}" class="nav-link {% if request.path == manage_section %} active {% endif %}">
+                    <a href="{% url 'manage_section' %}" class="nav-link {% if 'manage_section' in request.path or 'add_section' in request.path or 'edit_section' in request.path %} active {% endif %}">
                         <i class="nav-icon fas fa-th-large" style="color: #00d4ff;"></i>
                         <p>Manage Section</p>
                     </a>
@@ -76,7 +76,7 @@
 
                 <li class="nav-item">
                     {% url 'manage_subject' as manage_subject %}
-                    <a href="{% url 'manage_subject' %}" class="nav-link {% if request.path == manage_subject %} active {% endif %}">
+                    <a href="{% url 'manage_subject' %}" class="nav-link {% if 'manage_subject' in request.path or 'add_subject' in request.path or 'edit_subject' in request.path %} active {% endif %}">
                         <i class="nav-icon fas fa-book-open" style="color: #00d4ff;"></i>
                         <p>Manage Subject</p>
                     </a>
@@ -84,7 +84,7 @@
 
                 <li class="nav-item">
                     {% url 'manage_session' as manage_session %}
-                    <a href="{% url 'manage_session' %}" class="nav-link {% if request.path == manage_session %} active {% endif %}">
+                    <a href="{% url 'manage_session' %}" class="nav-link {% if 'manage_session' in request.path or 'add_session' in request.path or 'edit_session' in request.path %} active {% endif %}">
                         <i class="nav-icon fas fa-calendar-alt" style="color: #00d4ff;"></i>
                         <p>Manage School Year</p>
                     </a>
@@ -123,7 +123,7 @@
       box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
     }
     .active {
-      background: linear-gradient(45deg, #00d4ff, #006eff);
+      background: linear-gradient(45deg, #002fff,  #00d4ff);
       box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
     }
   </style>

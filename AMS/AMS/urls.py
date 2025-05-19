@@ -28,6 +28,8 @@ urlpatterns = [
     path('get_user_details/', views.GetUserDetails),
     path('logout_user/', views.Logout_user, name="logout_user"),
     path('LoggedIn', views.LoggedIn, name="LoggedIn"),
+    path('rfid-endpoint/', views.rfid_endpoint, name='rfid-endpoint'),
+
     path('admin_home/', adminviews.admin_home, name="admin_home"),
     path('add_staff/', adminviews.add_staff, name="add_staff"),
     path('add_staff_save', adminviews.add_staff_save, name="add_staff_save"),
@@ -73,8 +75,6 @@ urlpatterns = [
     path("get_sections_by_session_year/", adminviews.get_sections_by_session_year, name="get_sections_by_session_year"),
     path("download_attendance/", adminviews.download_attendance, name="download_attendance"),
     path("get_ongoing_subject/", adminviews.get_ongoing_subject, name="get_ongoing_subject"),
-    path("scan_rfid/", adminviews.scan_rfid, name="scan_rfid"),
-    path("api/rfid-scan/", adminviews.save_rfid_tag, name="save_rfid_tag"),
 
 
     path('reset-password/', auth_views.PasswordResetView.as_view(), name='reset_password'),

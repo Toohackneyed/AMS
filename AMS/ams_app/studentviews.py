@@ -95,41 +95,43 @@ def student_get_attendance(request):
         end_date = parse_date(data.get("end_date"))
         get_all_schedules = data.get("get_all_schedules", False)
 
+        if get_all_schedules and subject_id:
+            schedule_objs = SubjectSchedule.objects.filter(subject_id=subject_id)
+        elif schedule_id:
+            schedule_objs = SubjectSchedule.objects.filter(id=schedule_id)
+        else:
+            schedule_objs = []
+
         attendance_filters = {
             "session_year_id": session_year_id,
             "attendance_date__range": (start_date, end_date),
+            "subject_id": subject_id
         }
 
-        if subject_id:
-            attendance_filters["subject_id"] = subject_id
-
-        if get_all_schedules and subject_id:
-            schedule_ids = list(SubjectSchedule.objects.filter(subject_id=subject_id).values_list("id", flat=True))
-        elif schedule_id:
-            schedule_ids = [schedule_id]
-        else:
-            schedule_ids = []
-
-        if schedule_ids:
-            attendance_filters["schedule_id__in"] = schedule_ids
+        if schedule_objs:
+            attendance_filters["schedule_id__in"] = [s.id for s in schedule_objs]
 
         attendance_list = Attendance.objects.filter(**attendance_filters)
         reports = AttendanceReport.objects.filter(attendance__in=attendance_list, student=student).select_related(
             "attendance__subject", "attendance__schedule"
         )
 
-        report_map = {(report.attendance.attendance_date, report.attendance.schedule_id): report for report in reports}
+        report_map = {
+            (report.attendance.attendance_date, report.attendance.schedule_id): report
+            for report in reports
+        }
 
         response_data = []
         current_date = start_date
         while current_date <= end_date:
-            for sched_id in schedule_ids:
-                schedule = SubjectSchedule.objects.get(id=sched_id)
-                attendance = next((a for a in attendance_list if a.schedule_id == sched_id and a.attendance_date == current_date), None)
+            weekday_str = current_date.strftime("%A")
 
-                report = report_map.get((current_date, sched_id))
+            for schedule in schedule_objs:
+                if schedule.day_of_week != weekday_str:
+                    continue
+
+                report = report_map.get((current_date, schedule.id))
                 status = report.status if report else "Absent"
-
                 subject_name = report.attendance.subject.subject_name if report else Subjects.objects.get(id=subject_id).subject_name
 
                 response_data.append({
@@ -160,21 +162,26 @@ def student_download_attendance(request):
         get_all_schedules = data.get("get_all_schedules", False)
 
         if get_all_schedules and subject_id:
-            schedule_ids = list(SubjectSchedule.objects.filter(subject_id=subject_id).values_list("id", flat=True))
+            schedule_objs = SubjectSchedule.objects.filter(subject_id=subject_id)
         elif schedule_id:
-            schedule_ids = [schedule_id]
+            schedule_objs = SubjectSchedule.objects.filter(id=schedule_id)
         else:
-            schedule_ids = []
+            schedule_objs = []
 
         data_list = []
         current_date = start_date
 
         while current_date <= end_date:
-            for sched_id in schedule_ids:
+            weekday_str = current_date.strftime("%A")
+
+            for schedule in schedule_objs:
+                if schedule.day_of_week != weekday_str:
+                    continue
+
                 attendance = Attendance.objects.filter(
                     subject_id=subject_id,
                     session_year_id=session_year_id,
-                    schedule_id=sched_id,
+                    schedule_id=schedule.id,
                     attendance_date=current_date
                 ).first()
 
@@ -182,24 +189,21 @@ def student_download_attendance(request):
                 if attendance:
                     report = AttendanceReport.objects.filter(attendance=attendance, student=student).first()
                     if report:
-                        schedule_str = f"{attendance.schedule.day_of_week} ({attendance.schedule.start_time} - {attendance.schedule.end_time})"
                         data_list.append([
                             str(current_date),
-                            schedule_str,
+                            f"{schedule.day_of_week} ({schedule.start_time} - {schedule.end_time})",
                             report.status,
                             attendance.subject.subject_name
                         ])
                         found = True
 
                 if not found:
-                    schedule_obj = SubjectSchedule.objects.get(id=sched_id)
-                    subject_obj = Subjects.objects.get(id=subject_id)
-                    schedule_str = f"{schedule_obj.day_of_week} ({schedule_obj.start_time} - {schedule_obj.end_time})"
+                    subject_name = Subjects.objects.get(id=subject_id).subject_name
                     data_list.append([
                         str(current_date),
-                        schedule_str,
+                        f"{schedule.day_of_week} ({schedule.start_time} - {schedule.end_time})",
                         "Absent",
-                        subject_obj.subject_name
+                        subject_name
                     ])
 
             current_date += timedelta(days=1)
@@ -213,6 +217,7 @@ def student_download_attendance(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
+
 
 def student_profile(request):
     user=CustomUser.objects.get(id=request.user.id)

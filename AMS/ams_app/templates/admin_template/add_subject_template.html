@@ -30,20 +30,20 @@ Add Subject
 
                             <div class="form-group">
                                 <label class="font-weight-bold">Course</label>
-                                <select class="form-control" name="course" required>
+                                <select class="form-control select2" name="course" required style="width: 100%;">
                                     <option value="" disabled selected>Select Course</option>
                                     {% for course in courses %}
-                                    <option value="{{course.id}}">{{course.course_name}}</option>
+                                    <option value="{{ course.id }}">{{ course.course_name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
 
                             <div class="form-group">
                                 <label class="font-weight-bold">Staff</label>
-                                <select class="form-control" name="staff" required>
+                                <select class="form-control select2" name="staff" required>
                                     <option value="" disabled selected>Select Staff</option>
                                     {% for staff in staffs %}
-                                    <option value="{{staff.id}}">{{staff.admin.first_name}} {{staff.admin.last_name}}</option>
+                                    <option value="{{ staff.id }}">{{ staff.admin.first_name }} {{ staff.admin.last_name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -67,7 +67,7 @@ Add Subject
                                         <button type="button" class="btn btn-danger remove-schedule">Remove</button>
                                     </div>
                                 </div>
-                                <button type="button" class="btn btn-success mt-2" id="add-schedule">Add Schedule</button>
+                                <button type="button" class="btn btn-success mt-2" id="add-schedule">+ Schedule</button>
                             </div>
 
                             <!-- Flash Messages -->
@@ -87,7 +87,7 @@ Add Subject
         </div>
     </div>
 </section>
-
+{% block custom_js %}
 <!-- JavaScript for Dynamic Schedule Management -->
 <script>
     document.getElementById('add-schedule').addEventListener('click', function() {
@@ -116,5 +116,20 @@ Add Subject
             event.target.parentElement.remove();
         }
     });
+    $(document).ready(function() {
+    // Check if Select2 is defined
+    if ($.fn.select2 === undefined) {
+        console.error("Select2 not loaded!");
+    } else {
+        console.log("Select2 is working.");
+    }
+
+    $('.select2').select2({
+        placeholder: "Select",
+        allowClear: true,
+        width: '100%'
+    });
+  });
 </script>
+{% endblock custom_js %}   
 {% endblock main_content %}

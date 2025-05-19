@@ -12,11 +12,10 @@ Manage Session Year
             <div class="col-lg-10">
                 <div class="card shadow-lg border-0 rounded">
                     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <h3 class="card-title mb-0">Session Year Details</h3>
                         <div>
                             <!-- Toggle Add Session Button -->
                             <button class="btn btn-success btn-sm rounded-pill px-3" id="toggleAddSession">
-                                + Add Session
+                                + Session
                             </button>
                         </div>
                         <!-- Search Box -->
@@ -141,13 +140,50 @@ Manage Session Year
 </script>
 
 <style>
-    /* Hover Effect for Buttons */
-    .btn-sm {
-        transition: all 0.3s ease-in-out;
+    /* Custom CSS */
+    .table th, .table td {
+        vertical-align: middle;
     }
-    .btn-sm:hover {
-        transform: scale(1.05);
+    .table th {
+        text-align: center;
+    }
+    .table td {
+        text-align: center;
+    }
+    .table img {
+        border-radius: 50%;
+    }
+    .input-group {
+        margin-left: auto;
+    }
+    .input-group-append {
+        margin-left: -1px;
+    }
+    .input-group input {
+        border-radius: 0.25rem;
+    }
+    .input-group button {
+        border-radius: 0 0.25rem 0.25rem 0;
+    }
+    .card-header {
+        border-bottom: 1px solid #dee2e6;
+    }
+    .card-body {
+        padding: 1.5rem;
+    }
+    .card-title {
+        margin-bottom: 0;
+    }
+    .card {
+        border-radius: 0.5rem;
+    }
+    .btn-success {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+    .btn-success:hover {
+        background-color: #218838;
+        border-color: #1e7e34;
     }
 </style>
-
 {% endblock main_content %}

@@ -110,9 +110,9 @@ def staff_download_attendance(request):
                 return JsonResponse({"error": "Unauthorized access to subject."}, status=403)
 
             if get_all_schedules:
-                schedule_ids = SubjectSchedule.objects.filter(subject_id=subject_id).values_list("id", flat=True)
+                schedule_objs = SubjectSchedule.objects.filter(subject_id=subject_id)
             else:
-                schedule_ids = [schedule_id]
+                schedule_objs = SubjectSchedule.objects.filter(id=schedule_id)
 
             students = Students.objects.filter(
                 enrollment__subject_id=subject_id,
@@ -126,11 +126,16 @@ def staff_download_attendance(request):
             current_date = start_date
 
             while current_date <= end_date:
-                for sched_id in schedule_ids:
+                weekday_str = current_date.strftime("%A")
+
+                for schedule_obj in schedule_objs:
+                    if schedule_obj.day_of_week != weekday_str:
+                        continue
+
                     attendance = Attendance.objects.filter(
                         subject_id=subject_id,
                         session_year_id=session_year_id,
-                        schedule_id=sched_id,
+                        schedule_id=schedule_obj.id,
                         attendance_date=current_date
                     ).first()
 
@@ -140,7 +145,7 @@ def staff_download_attendance(request):
                         for report in attendance.attendancereport_set.all():
                             student = report.student
                             student_name = f"{student.admin.first_name} {student.admin.last_name}"
-                            schedule_str = f"{attendance.schedule.day_of_week} ({attendance.schedule.start_time} - {attendance.schedule.end_time})"
+                            schedule_str = f"{schedule_obj.day_of_week} ({schedule_obj.start_time} - {schedule_obj.end_time})"
                             status = report.status
 
                             data_list.append([
@@ -152,7 +157,6 @@ def staff_download_attendance(request):
                             ])
                             attended_ids.add(student.id)
 
-                    schedule_obj = SubjectSchedule.objects.get(id=sched_id)
                     schedule_str = f"{schedule_obj.day_of_week} ({schedule_obj.start_time} - {schedule_obj.end_time})"
                     for student in students:
                         if student.id not in attended_ids:
@@ -219,9 +223,9 @@ def staff_get_attendance(request):
                 return JsonResponse({"error": "Unauthorized access to subject."}, status=403)
 
             if get_all_schedules:
-                schedule_ids = SubjectSchedule.objects.filter(subject_id=subject_id).values_list("id", flat=True)
+                schedule_objs = SubjectSchedule.objects.filter(subject_id=subject_id)
             else:
-                schedule_ids = [schedule_id]
+                schedule_objs = SubjectSchedule.objects.filter(id=schedule_id)
 
             students = Students.objects.filter(
                 enrollment__subject_id=subject_id,
@@ -235,13 +239,16 @@ def staff_get_attendance(request):
             current_date = start_date
 
             while current_date <= end_date:
-                for sched_id in schedule_ids:
-                    schedule_obj = SubjectSchedule.objects.get(id=sched_id)
+                weekday_str = current_date.strftime("%A")
+
+                for schedule_obj in schedule_objs:
+                    if schedule_obj.day_of_week != weekday_str:
+                        continue  # Skip non-matching day
 
                     attendance = Attendance.objects.filter(
                         subject_id=subject_id,
                         session_year_id=session_year_id,
-                        schedule_id=sched_id,
+                        schedule_id=schedule_obj.id,
                         attendance_date=current_date
                     ).first()
 
@@ -249,7 +256,7 @@ def staff_get_attendance(request):
                     reports_map = {}
 
                     if attendance:
-                        reports = AttendanceReport.objects.filter(attendance=attendance)
+                        reports = attendance.attendancereport_set.all()
                         for report in reports:
                             reports_map[report.student.id] = report
                             attended_ids.add(report.student.id)

@@ -1,6 +1,7 @@
 {% extends 'admin_template/base_template.html' %}
 
 {% block page_title %}
+Manage Staff
 {% endblock page_title %}
 
 {% block main_content %}
@@ -10,9 +11,8 @@
             <div class="col-lg-10">
                 <div class="card shadow-lg border-0 rounded">
                     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <h3 class="card-title">Staff Details</h3>
                         <div>
-                            <a href="{% url 'add_staff' %}" class="btn btn-success btn-sm rounded-pill px-3">+ Add Staff</a>
+                            <a href="{% url 'add_staff' %}" class="btn btn-success btn-sm rounded-pill px-3">+ Staff</a>
                         </div>
                         <div class="input-group input-group-sm" style="width: 200px;">
                             <input type="text" id="table_search" class="form-control rounded" placeholder="Search staff..." onkeyup="searchTable()">
@@ -44,10 +44,10 @@
                                     <td>{{ staff.admin.email }}</td>
                                     <td>
                                         <a href="{% url 'edit_staff' staff_id=staff.admin.id %}" class="btn btn-sm btn-success">
-                                            <i class="fas fa-edit"></i>Edit
+                                            <i class="fas fa-edit"></i> Edit
                                         </a>
                                         <a href="{% url 'delete_staff' staff_id=staff.admin.id %}" class="btn btn-sm btn-danger" onclick="return confirmDelete();">
-                                            <i class="fas fa-trash"></i>Delete
+                                            <i class="fas fa-trash"></i> Delete
                                         </a>
                                     </td>
                                 </tr>
@@ -79,17 +79,50 @@
 </script>
 
 <style>
-    .sticky-header {
-        position: sticky;
-        top: 0;
-        z-index: 10;
+    /* Custom CSS */
+    .table th, .table td {
+        vertical-align: middle;
     }
-    .btn-sm {
-        transition: all 0.3s ease-in-out;
+    .table th {
+        text-align: center;
     }
-    .btn-sm:hover {
-        transform: scale(1.05);
+    .table td {
+        text-align: center;
+    }
+    .table img {
+        border-radius: 50%;
+    }
+    .input-group {
+        margin-left: auto;
+    }
+    .input-group-append {
+        margin-left: -1px;
+    }
+    .input-group input {
+        border-radius: 0.25rem;
+    }
+    .input-group button {
+        border-radius: 0 0.25rem 0.25rem 0;
+    }
+    .card-header {
+        border-bottom: 1px solid #dee2e6;
+    }
+    .card-body {
+        padding: 1.5rem;
+    }
+    .card-title {
+        margin-bottom: 0;
+    }
+    .card {
+        border-radius: 0.5rem;
+    }
+    .btn-success {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+    .btn-success:hover {
+        background-color: #218838;
+        border-color: #1e7e34;
     }
 </style>
-
 {% endblock main_content %}
