@@ -20,15 +20,26 @@
         </div>
 
         <!-- Attendance Log -->
-        <div id="attendancediv" class="col-md-5">
-            <h3 id="title">📝 Attendance Log</h3>
-            <ul id="attendanceLog" class="list-group">
-                <li class="list-group-item no-record">No attendance recorded yet.</li>
-            </ul>
+        <div class="col-md-5">
+            <div id="attendancediv">
+                <h3 id="title">📝 Attendance Log</h3>
+                <ul id="attendanceLog" class="list-group">
+                    <li class="list-group-item no-record">No attendance recorded yet.</li>
+                </ul>
+            </div>
+
+            <!-- RFID Log Panel -->
+            <div id="rfiddiv" class="mt-4">
+                <h3 id="rfidTitle">📟 Detected RFID</h3>
+                <ul id="rfidLog" class="list-group">
+                    <li class="list-group-item no-rfid">No RFID detected yet.</li>
+                </ul>
+            </div>
         </div>
     </div>
 </div>
 
+<!-- CSS -->
 <style>
     #video {
         width: 100%;
@@ -52,27 +63,33 @@
         cursor: pointer;
     }
 
-    #attendanceLog {
+    #attendanceLog, #rfidLog {
         max-height: 300px;
         overflow-y: auto;
-        border: 1px solid #007bff;
         border-radius: 8px;
         padding: 5px;
         margin-top: 5px;
     }
 
-    #attendancediv {
-        max-height: 510px;
-        overflow-y: auto;
+    #attendancediv, #rfiddiv {
         border: 2px solid #007bff;
         border-radius: 8px;
         padding: 15px;
-        margin-top: 50px;
+    }
+
+    #rfiddiv {
+        border-color: #28a745;
     }
 
     .list-group-item {
         background-color: #e0f3ff;
         color: #004085;
+        font-weight: bold;
+    }
+
+    #rfidLog .list-group-item {
+        background-color: #e6ffed;
+        color: #155724;
         font-weight: bold;
     }
 
@@ -82,13 +99,22 @@
         padding: 5px;
         border-radius: 5px;
     }
+
+    #rfidTitle {
+        background-color: #28a745;
+        color: white;
+        padding: 5px;
+        border-radius: 5px;
+    }
 </style>
 
+<!-- JavaScript -->
 <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const result = document.getElementById('result');
     const attendanceLog = document.getElementById('attendanceLog');
+    const rfidLog = document.getElementById('rfidLog');
     const fixedMessage = document.getElementById('fixedMessage');
     const fullscreenBtn = document.getElementById('fullscreenBtn');
 
@@ -125,22 +151,36 @@
     });
 
     function addToAttendanceLog(name, status, timeStr) {
-    const noRecordMessage = attendanceLog.querySelector('.no-record');
-    if (noRecordMessage) noRecordMessage.remove();
+        const noRecordMessage = attendanceLog.querySelector('.no-record');
+        if (noRecordMessage) noRecordMessage.remove();
 
-    const entry = `${name} - ${status} at ${timeStr}`;
+        const entry = `${name} - ${status} at ${timeStr}`;
 
-    if ([...attendanceLog.children].some(item => item.innerText.includes(name))) return;
+        if ([...attendanceLog.children].some(item => item.innerText.includes(name))) return;
 
-    const newItem = document.createElement("li");
-    newItem.classList.add("list-group-item");
-    newItem.innerText = entry;
-    attendanceLog.prepend(newItem);
+        const newItem = document.createElement("li");
+        newItem.classList.add("list-group-item");
+        newItem.innerText = entry;
+        attendanceLog.prepend(newItem);
 
-    if (attendanceLog.childElementCount > 5) {
-        attendanceLog.removeChild(attendanceLog.lastChild);
+        if (attendanceLog.childElementCount > 3) {
+            attendanceLog.removeChild(attendanceLog.lastChild);
+        }
     }
-}
+
+    function addToRFIDLog(rfid) {
+        const noRfidMessage = rfidLog.querySelector('.no-rfid');
+        if (noRfidMessage) noRfidMessage.remove();
+
+        const newItem = document.createElement("li");
+        newItem.classList.add("list-group-item");
+        newItem.innerText = `RFID: ${rfid}`;
+        rfidLog.prepend(newItem);
+
+        if (rfidLog.childElementCount > 3) {
+            rfidLog.removeChild(rfidLog.lastChild);
+        }
+    }
 
     function checkOngoingClass() {
         fetch("/get_ongoing_subject/")
@@ -160,6 +200,29 @@
             });
     }
     setInterval(checkOngoingClass, 3000);
+        function pollRFIDLog() {
+            fetch("/get_latest_rfids/")
+                .then(res => res.json())
+                .then(data => {
+                    if (data.rfids && data.rfids.length > 0) {
+                        rfidLog.innerHTML = ""; // clear list
+                        data.rfids.reverse().forEach(rfid => {
+                            const newItem = document.createElement("li");
+                            newItem.classList.add("list-group-item");
+                            newItem.innerText = `RFID: ${rfid}`;
+                            rfidLog.appendChild(newItem);
+                        });
+                    } else {
+                        if (!rfidLog.querySelector(".no-rfid")) {
+                            rfidLog.innerHTML = `<li class="list-group-item no-rfid">No RFID detected yet.</li>`;
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error("Error fetching RFID log:", err);
+                });
+        }
+        setInterval(pollRFIDLog, 2000); // every 2 seconds
 
     function startFaceRecognition() {
         if (interval) clearInterval(interval);
@@ -191,6 +254,7 @@
                 .then(data => {
                     if (data.message) {
                         addToAttendanceLog(data.formatted_name, data.status, data.attendance_time);
+                        addToRFIDLog(data.rfid);
                         result.innerText = `✅ ${data.message}`;
                     } else if (data.error) {
                         result.innerText = `❌ ${data.error}`;
@@ -198,7 +262,6 @@
                         result.innerText = "❌ Attendance failed.";
                     }
                 })
-
                 .catch(err => {
                     console.error("Attendance error:", err);
                     result.innerText = "⚠️ Error marking attendance.";

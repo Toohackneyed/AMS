@@ -14,12 +14,18 @@ Edit Student | Student ID #: {{ student.id_number }} | {{ student.admin.username
             <h3 class="card-title">Edit Student Details</h3>
           </div>
 
-          <form role="form" action="{% url 'edit_student_save' %}" method="post">
+          <form role="form" action="{% url 'edit_student_save' %}" method="post" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" name="student_id" value="{{ student.admin.id }}">
 
             <div class="card-body">
               {{ form.as_p }}
+              {% if student.profile_pic %}
+                <div class="form-group">
+                  <label>Current Profile Picture</label><br>
+                  <img src="{{ student.profile_pic.url }}" class="img-thumbnail" width="150">
+                </div>
+              {% endif %}
 
               <!-- New Password -->
               <div class="form-group">

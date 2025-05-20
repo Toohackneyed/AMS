@@ -50,6 +50,9 @@ class EditStudentForm(forms.Form):
     def __init__(self, *args, **kwargs):
         student_instance = kwargs.pop("student_instance", None)  # Get the student instance
         super(EditStudentForm, self).__init__(*args, **kwargs)
+        if student_instance:
+            self.fields['student_id'].initial = student_instance.admin.id
+
 
         # Populate course choices
         self.fields['course'].choices = [(course.id, course.course_name) for course in Courses.objects.all()]
@@ -82,3 +85,5 @@ class EditStudentForm(forms.Form):
     session_year_id = forms.ChoiceField(label="Session Year", choices=[], widget=forms.Select(attrs={"class": "form-control"}))
 
     profile_pic = forms.FileField(label="Profile Picture", widget=forms.FileInput(attrs={"class": "form-control"}), required=False)
+    student_id = forms.CharField(widget=forms.HiddenInput(), required=False)
+

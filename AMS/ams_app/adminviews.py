@@ -25,6 +25,8 @@ import openpyxl
 from openpyxl.styles import Font
 import io
 from io import BytesIO
+from insightface.app import FaceAnalysis
+from scipy.spatial.distance import cosine
 from PIL import Image
 from django.utils.dateparse import parse_date
 from django.db import transaction   
@@ -462,6 +464,7 @@ def edit_student(request, student_id):
         "gender": student.gender,
         "course": student.course_id.id if student.course_id else None,
         "section": student.section,
+        "student_id": student.admin.id,
     })
     form.fields['course'].choices = [(c.id, c.course_name) for c in Courses.objects.all()]
 
@@ -496,6 +499,11 @@ def edit_student_save(request):
     rfid = request.POST.get("rfid")
     gender = request.POST.get("gender")
     new_password = request.POST.get("password")
+    student_id = request.POST.get("student_id")
+    if not student_id:
+        messages.error(request, "Missing student ID.")
+        return redirect("manage_student")
+
 
     try:
         with transaction.atomic():
@@ -516,6 +524,17 @@ def edit_student_save(request):
             student.gender = gender
             student.course = Courses.objects.get(id=main_course_id) if main_course_id else None
             student.section = get_object_or_404(Sections, id=section_id)
+            profile_pic = request.FILES.get("profile_pic")
+
+            # Profile picture processing during edit
+            if profile_pic:
+                compressed_image = compress_image(profile_pic)
+                if compressed_image:
+                    image_file = ContentFile(compressed_image, name=f"profile_{student.id}.jpg")
+                    student.profile_pic.save(f"profile_{student.id}.jpg", image_file, save=True)
+                else:
+                    logger.warning("⚠️ Failed to compress profile picture during edit.")
+
             student.save()
 
             student.selected_courses.set(Courses.objects.filter(id__in=selected_course_ids))
@@ -1041,7 +1060,7 @@ def auto_mark_attendance_live(request):
         if img is None:
             return JsonResponse({"error": "Invalid image format"}, status=400)
 
-        img = cv2.resize(img, (320, 240))
+        img = cv2.resize(img, (640, 480))
         rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         face_locations = face_recognition.face_locations(rgb_img, model='hog')
         face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
@@ -1149,7 +1168,7 @@ def auto_mark_attendance_live(request):
     except Exception as e:
         print(f"⚡ ERROR: Exception processing image -> {e}")
         return JsonResponse({"error": "Error processing image"}, status=500)
-
+    
 def get_ongoing_subject(request):
     current_time = now().time()
     today = now().strftime("%A") 

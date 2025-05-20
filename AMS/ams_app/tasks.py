@@ -38,7 +38,7 @@ def process_face_encoding(student_id, image_data):
         rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
 
         # Detect face and encode
-        face_locations = face_recognition.face_locations(rgb_image, model="cnn")
+        face_locations = face_recognition.face_locations(rgb_image, model="hog")
         face_encodings = face_recognition.face_encodings(rgb_image, face_locations)
 
         if face_encodings:

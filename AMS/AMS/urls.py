@@ -19,7 +19,9 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 
 from ams_app import views, adminviews, staffviews, studentviews
+# from ams_app.views import AutoMarkAttendanceView, GetOngoingSubjectView
 from AMS import settings
+
 
 urlpatterns = [
     path('dashboard', views.dashboard),
@@ -28,7 +30,9 @@ urlpatterns = [
     path('get_user_details/', views.GetUserDetails),
     path('logout_user/', views.Logout_user, name="logout_user"),
     path('LoggedIn', views.LoggedIn, name="LoggedIn"),
-    path('rfid-endpoint/', views.rfid_endpoint, name='rfid-endpoint'),
+    # path('face-kiosk/', views.face_kiosk, name='face_kiosk'),
+    # path('api/auto_mark_attendance/', AutoMarkAttendanceView.as_view(), name='auto_mark_attendance'),
+    # path('api/get_ongoing_subject/', GetOngoingSubjectView.as_view(), name='get_ongoing_subject'),
 
     path('admin_home/', adminviews.admin_home, name="admin_home"),
     path('add_staff/', adminviews.add_staff, name="add_staff"),
