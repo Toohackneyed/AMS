@@ -62,16 +62,24 @@ Edit Student | Student ID #: {{ student.id_number }} | {{ student.admin.username
               </div>
 
               <!-- Alerts -->
-              <div class="form-group">
-                {% if messages %}
-                  {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }}">
-                      {{ message }}
-                    </div>
-                  {% endfor %}
-                {% endif %}
+              <!-- Toast Notification Container (Floating) -->
+              <div aria-live="polite" aria-atomic="true" class="position-relative">
+                <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999">
+                  {% if messages %}
+                    {% for message in messages %}
+                      <div class="toast align-items-center text-white bg-{{ message.tags }} border-0 shadow-sm mb-2" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="d-flex">
+                          <div class="toast-body">
+                            {{ message }}
+                          </div>
+                          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  {% endif %}
+                </div>
               </div>
-            </div>
+
 
             <div class="card-footer text-center">
               <button type="submit" class="btn btn-primary btn-lg">
@@ -132,6 +140,13 @@ Edit Student | Student ID #: {{ student.id_number }} | {{ student.admin.username
     courseSelect.on('change', function () {
       const selected = $(this).val() || [];
       fetchAndPopulateSubjects(selected);
+    });
+  });
+  document.addEventListener('DOMContentLoaded', function () {
+    const toasts = document.querySelectorAll('.toast');
+    toasts.forEach(function (toastEl) {
+      const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+      toast.show();
     });
   });
 </script>

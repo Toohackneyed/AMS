@@ -82,15 +82,28 @@
     }
 
     .list-group-item {
-        background-color: #e0f3ff;
-        color: #004085;
         font-weight: bold;
+        animation: slideIn 0.3s ease-in;
+    }
+
+    #attendanceLog .present {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    #attendanceLog .late {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    #attendanceLog .absent {
+        background-color: #f8d7da;
+        color: #721c24;
     }
 
     #rfidLog .list-group-item {
         background-color: #e6ffed;
         color: #155724;
-        font-weight: bold;
     }
 
     #title {
@@ -105,6 +118,11 @@
         color: white;
         padding: 5px;
         border-radius: 5px;
+    }
+
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 </style>
 
@@ -150,12 +168,25 @@
         isFullscreen = !isFullscreen;
     });
 
+    function formatTime(timeStr) {
+        if (!timeStr || timeStr === "Invalid Date") return "Unknown Time";
+        const date = new Date("1970-01-01T" + timeStr);
+        if (isNaN(date)) return "Unknown Time";
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
     function addToAttendanceLog(name, status, timeStr) {
         const noRecordMessage = attendanceLog.querySelector('.no-record');
         if (noRecordMessage) noRecordMessage.remove();
 
+        if (!timeStr || timeStr === "Unknown Time") {
+            const now = new Date();
+            timeStr = now.toLocaleTimeString();  // fallback time
+        }
+
         const entry = `${name} - ${status} at ${timeStr}`;
 
+        // Avoid duplicate entries
         if ([...attendanceLog.children].some(item => item.innerText.includes(name))) return;
 
         const newItem = document.createElement("li");
@@ -177,7 +208,7 @@
         newItem.innerText = `RFID: ${rfid}`;
         rfidLog.prepend(newItem);
 
-        if (rfidLog.childElementCount > 3) {
+        while (rfidLog.childElementCount > 3) {
             rfidLog.removeChild(rfidLog.lastChild);
         }
     }
@@ -200,29 +231,30 @@
             });
     }
     setInterval(checkOngoingClass, 3000);
-        function pollRFIDLog() {
-            fetch("/get_latest_rfids/")
-                .then(res => res.json())
-                .then(data => {
-                    if (data.rfids && data.rfids.length > 0) {
-                        rfidLog.innerHTML = ""; // clear list
-                        data.rfids.reverse().forEach(rfid => {
-                            const newItem = document.createElement("li");
-                            newItem.classList.add("list-group-item");
-                            newItem.innerText = `RFID: ${rfid}`;
-                            rfidLog.appendChild(newItem);
-                        });
-                    } else {
-                        if (!rfidLog.querySelector(".no-rfid")) {
-                            rfidLog.innerHTML = `<li class="list-group-item no-rfid">No RFID detected yet.</li>`;
-                        }
+
+    function pollRFIDLog() {
+        fetch("/get_latest_rfids/")
+            .then(res => res.json())
+            .then(data => {
+                if (data.rfids && data.rfids.length > 0) {
+                    rfidLog.innerHTML = "";
+                    data.rfids.slice(-3).reverse().forEach(rfid => {
+                        const newItem = document.createElement("li");
+                        newItem.classList.add("list-group-item");
+                        newItem.innerText = `RFID: ${rfid}`;
+                        rfidLog.appendChild(newItem);
+                    });
+                } else {
+                    if (!rfidLog.querySelector(".no-rfid")) {
+                        rfidLog.innerHTML = `<li class="list-group-item no-rfid">No RFID detected yet.</li>`;
                     }
-                })
-                .catch(err => {
-                    console.error("Error fetching RFID log:", err);
-                });
-        }
-        setInterval(pollRFIDLog, 2000); // every 2 seconds
+                }
+            })
+            .catch(err => {
+                console.error("Error fetching RFID log:", err);
+            });
+    }
+    setInterval(pollRFIDLog, 2000);
 
     function startFaceRecognition() {
         if (interval) clearInterval(interval);
@@ -254,7 +286,9 @@
                 .then(data => {
                     if (data.message) {
                         addToAttendanceLog(data.formatted_name, data.status, data.attendance_time);
-                        addToRFIDLog(data.rfid);
+                        if (data.rfid) {
+                            addToRFIDLog(data.rfid);
+                        }
                         result.innerText = `✅ ${data.message}`;
                     } else if (data.error) {
                         result.innerText = `❌ ${data.error}`;

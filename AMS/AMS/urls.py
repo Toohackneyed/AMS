@@ -30,11 +30,14 @@ urlpatterns = [
     path('get_user_details/', views.GetUserDetails),
     path('logout_user/', views.Logout_user, name="logout_user"),
     path('LoggedIn', views.LoggedIn, name="LoggedIn"),
+
+
     # path('face-kiosk/', views.face_kiosk, name='face_kiosk'),
     # path('api/auto_mark_attendance/', AutoMarkAttendanceView.as_view(), name='auto_mark_attendance'),
     # path('api/get_ongoing_subject/', GetOngoingSubjectView.as_view(), name='get_ongoing_subject'),
 
     path('admin_home/', adminviews.admin_home, name="admin_home"),
+    path("about/", adminviews.about_us, name="about_page"),
     path('add_staff/', adminviews.add_staff, name="add_staff"),
     path('add_staff_save', adminviews.add_staff_save, name="add_staff_save"),
     path('add_course/', adminviews.add_course, name="add_course"),
@@ -79,6 +82,7 @@ urlpatterns = [
     path("get_sections_by_session_year/", adminviews.get_sections_by_session_year, name="get_sections_by_session_year"),
     path("download_attendance/", adminviews.download_attendance, name="download_attendance"),
     path("get_ongoing_subject/", adminviews.get_ongoing_subject, name="get_ongoing_subject"),
+    path('get_latest_rfids/', adminviews.get_latest_rfids, name='get_latest_rfids'),
 
 
     path('reset-password/', auth_views.PasswordResetView.as_view(), name='reset_password'),

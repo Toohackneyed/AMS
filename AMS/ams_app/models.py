@@ -10,6 +10,8 @@ import numpy as np
 import io
 from django.db.models.signals import post_delete
 from django.utils.timezone import now
+from utils.face_utils import extract_face_embedding
+
 
 class SessionYearModel(models.Model):
     id = models.AutoField(primary_key=True)
@@ -140,20 +142,15 @@ class Students(models.Model):
             return []
 
         try:
-            image_path = self.profile_pic.path  # Get image path
-            image = face_recognition.load_image_file(image_path)
-            face_encodings = face_recognition.face_encodings(image)
-
-            if face_encodings:  # Check kung may mukha
-                return face_encodings[0].tolist()
+            encoding = extract_face_embedding(self.profile_pic.path)
+            if encoding:
+                return encoding
             else:
-                print("⚠️ No face detected in the image!")
-                return []  # Return empty list instead of None
-
+                print("⚠️ No face detected!")
+                return []
         except Exception as e:
-            print(f"⚠️ Error processing image: {e}")
+            print(f"⚠️ Error generating encoding: {e}")
             return []
-
 
     def get_face_encoding(self):
         if not self.face_encoding:

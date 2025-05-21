@@ -1,10 +1,11 @@
 {% load static %}
 <aside class="main-sidebar sidebar-dark-primary elevation-4" style="background: linear-gradient(135deg, #0a0f2c, #1b2a49); box-shadow: 4px 4px 10px rgba(0, 212, 255, 0.2);">
     <!-- Brand Logo -->
-    <a href="index3.html" class="brand-link">
+    <a href="{% url 'about_page' %}" class="brand-link">
         <img src="{% static 'dist/img/Logo.png' %}" alt="IdentiTech Logo" class="brand-image elevation-3" style="opacity: .9">
         <span class="brand-text font-weight-light" style="color: #00d4ff; text-shadow: 0 0 10px #00d4ff;">IdentiTech</span>
     </a>
+
 
     <!-- Sidebar -->
     <div class="sidebar">
@@ -113,18 +114,29 @@
     <!-- /.sidebar -->
 </aside>
 
-  <style>
-    .nav-link {
-      border-radius: 8px;
-      padding: 10px;
-    }
-    .nav-link:hover {
-      background: rgba(0, 212, 255, 0.2);
-      box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-    }
-    .active {
-      background: linear-gradient(45deg, #002fff,  #00d4ff);
-      box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
-    }
-  </style>
+<style>
+  .nav-link {
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .nav-link:hover {
+    background: rgba(0, 212, 255, 0.2);
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+  }
+  .active {
+    background: linear-gradient(45deg, #002fff, #00d4ff);
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
+  }
+
+  /* 🔧 Remove underline globally on all anchor buttons/links */
+  a,
+  a:visited,
+  a:hover,
+  a:active,
+  a.btn,
+  button {
+    text-decoration: none !important;
+  }
+</style>
+
   

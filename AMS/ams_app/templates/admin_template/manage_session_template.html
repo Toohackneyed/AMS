@@ -8,182 +8,206 @@ Manage Session Year
 <section class="content">
     <div class="container-fluid">
         <div class="row justify-content-center">
-            <!-- SESSION YEAR LIST -->
             <div class="col-lg-10">
-                <div class="card shadow-lg border-0 rounded">
+                <div class="card shadow-lg border-0 rounded-3">
                     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <div>
-                            <!-- Toggle Add Session Button -->
-                            <button class="btn btn-success btn-sm rounded-pill px-3" id="toggleAddSession">
-                                + Session
+                        <button class="btn btn-success btn-sm rounded-pill px-3" id="toggleAddSession">
+                            + Add Session
+                        </button>
+                        <div class="input-group input-group-sm w-25">
+                            <input type="text" class="form-control" id="table_search" placeholder="Search..." onkeyup="searchTable()">
+                            <button class="btn btn-light">
+                                <i class="fas fa-search"></i>
                             </button>
                         </div>
-                        <!-- Search Box -->
-                        <div class="input-group input-group-sm w-25">
-                            <input type="text" name="table_search" id="table_search" class="form-control rounded" placeholder="Search session..." onkeyup="searchTable()">
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-light">
-                                    <i class="fas fa-search"></i>
-                                </button>
+                    </div>
+
+                    <!-- Add Session Form -->
+                    <div class="card-body" id="addSessionForm" style="display: none;">
+                        <form method="post" action="/add_session_save" onsubmit="return validateDates();">
+                            {% csrf_token %}
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="start_date" class="form-label">Start Date</label>
+                                    <input type="date" class="form-control" name="session_start_date" id="start_date" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="end_date" class="form-label">End Date</label>
+                                    <input type="date" class="form-control" name="session_end_date" id="end_date" required>
+                                </div>
                             </div>
-                        </div>
+                            <div class="text-end">
+                                <button type="submit" class="btn btn-primary">Save</button>
+                            </div>
+                        </form>
                     </div>
 
-                    <!-- ADD SESSION YEAR FORM (Initially Hidden) -->
-                    <div class="card-body p-0" id="addSessionForm" style="display: none;">
-                        <div class="p-3">
-                            <form role="form" action="/add_session_save" method="post">
-                                {% csrf_token %}
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label>Session Start Year</label>
-                                            <input type="date" class="form-control" name="session_start_date" required
-                                                   value="{{ latest_session.session_start_date|date:'Y-m-d' }}">
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label>Session End Year</label>
-                                            <input type="date" class="form-control" name="session_end_date" required
-                                                   value="{{ latest_session.session_end_date|date:'Y-m-d' }}">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- SUCCESS & ERROR MESSAGES -->
-                                {% if messages %}
-                                <div class="mt-2">
-                                    {% for message in messages %}
-                                    <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-
-                                <div class="text-end">
-                                    <button type="submit" class="btn btn-primary">Save Session Year</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-
-                    <!-- SESSION YEAR TABLE -->
+                    <!-- Table -->
                     <div class="card-body table-responsive p-0">
-                        <table class="table table-hover text-center">
+                        <table class="table table-hover text-center" id="sessionTable">
                             <thead class="bg-dark text-white">
                                 <tr>
-                                   
-                                    <th>Session Start</th>
-                                    <th>Session End</th>
+                                    <th onclick="sortTable(0)">Start Date <i class="fas fa-sort"></i></th>
+                                    <th onclick="sortTable(1)">End Date <i class="fas fa-sort"></i></th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
-                            <tbody id="sessionTable">
+                            <tbody>
                                 {% for session in sessions %}
                                 <tr>
-                                    
                                     <td>{{ session.session_start_date }}</td>
                                     <td>{{ session.session_end_date }}</td>
                                     <td>
-                                        <a href="/edit_session/{{ session.id }}" class="btn btn-success btn-sm">
-                                            <i class="fas fa-edit"></i> Edit
+                                        <a href="/edit_session/{{ session.id }}" class="btn btn-success btn-sm" title="Edit">
+                                            <i class="fas fa-edit"></i>
                                         </a>
-                                        <a href="{% url 'delete_session' session.id %}" class="btn btn-danger btn-sm" onclick="return confirmDelete();">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </a>
+                                        <button onclick="confirmDelete('{{ session.id }}')" class="btn btn-danger btn-sm" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                     </td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted">No session years available.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
+
+                        <!-- Pagination -->
+                        <div class="text-center my-3">
+                            <button class="btn btn-outline-primary btn-sm" onclick="paginateTable(-1)">Previous</button>
+                            <span id="pageNumber">Page 1</span>
+                            <button class="btn btn-outline-primary btn-sm" onclick="paginateTable(1)">Next</button>
+                        </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999">
+        <div id="toast" class="toast align-items-center text-bg-success border-0" role="alert" style="display: none;">
+            <div class="d-flex">
+                <div class="toast-body">Action successful!</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="closeToast()"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete this session?
+                </div>
+                <div class="modal-footer">
+                    <a href="#" id="deleteConfirmLink" class="btn btn-danger">Yes, Delete</a>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 </div>
             </div>
         </div>
     </div>
 </section>
 
-<!-- JavaScript for Toggle Button, Delete Confirmation, and Table Search -->
+<!-- JavaScript -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const toggleButton = document.getElementById('toggleAddSession');
-        const addSessionForm = document.getElementById('addSessionForm');
+    const rowsPerPage = 5;
+    let currentPage = 1;
 
-        // Toggle Add Session Form
-        toggleButton.addEventListener('click', function() {
-            const isVisible = addSessionForm.style.display === 'block';
-            addSessionForm.style.display = isVisible ? 'none' : 'block';
-            toggleButton.textContent = isVisible ? '+ Add Session' : '- Hide Form';
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('toggleAddSession').addEventListener('click', () => {
+            const form = document.getElementById('addSessionForm');
+            form.style.display = form.style.display === 'block' ? 'none' : 'block';
         });
+
+        paginateTable(0); // Initialize pagination
     });
 
-    // Delete Confirmation
-    function confirmDelete() {
-        return confirm("Are you sure you want to delete this session year? This action cannot be undone.");
-    }
-
-    // Search Table Function
     function searchTable() {
         const input = document.getElementById("table_search").value.toLowerCase();
-        const rows = document.querySelectorAll("#sessionTable tr");
-        
+        const rows = document.querySelectorAll("#sessionTable tbody tr");
+
         rows.forEach(row => {
-            const text = row.innerText.toLowerCase();
-            row.style.display = text.includes(input) ? "" : "none";
+            const rowText = row.innerText.toLowerCase();
+            row.style.display = rowText.includes(input) ? "" : "none";
         });
+    }
+
+    function confirmDelete(id) {
+        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        document.getElementById('deleteConfirmLink').href = `/delete_session/${id}`;
+        modal.show();
+    }
+
+    function validateDates() {
+        const start = new Date(document.getElementById('start_date').value);
+        const end = new Date(document.getElementById('end_date').value);
+        if (start >= end) {
+            alert("End date must be after start date.");
+            return false;
+        }
+        return true;
+    }
+
+    function sortTable(columnIndex) {
+        const table = document.getElementById("sessionTable").getElementsByTagName("tbody")[0];
+        const rows = Array.from(table.rows);
+        const asc = table.getAttribute("data-sort") !== "asc";
+        rows.sort((a, b) => {
+            const aText = a.cells[columnIndex].textContent;
+            const bText = b.cells[columnIndex].textContent;
+            return asc ? aText.localeCompare(bText) : bText.localeCompare(aText);
+        });
+        rows.forEach(row => table.appendChild(row));
+        table.setAttribute("data-sort", asc ? "asc" : "desc");
+    }
+
+    function paginateTable(direction) {
+        const rows = document.querySelectorAll("#sessionTable tbody tr");
+        const totalPages = Math.ceil(rows.length / rowsPerPage);
+        currentPage = Math.max(1, Math.min(currentPage + direction, totalPages));
+
+        rows.forEach((row, index) => {
+            row.style.display = (index >= (currentPage - 1) * rowsPerPage && index < currentPage * rowsPerPage) ? "" : "none";
+        });
+
+        document.getElementById("pageNumber").textContent = `Page ${currentPage}`;
+    }
+
+    function showToast(message = "Action successful!") {
+        const toast = document.getElementById("toast");
+        toast.querySelector(".toast-body").textContent = message;
+        toast.style.display = 'block';
+        setTimeout(closeToast, 3000);
+    }
+
+    function closeToast() {
+        document.getElementById("toast").style.display = "none";
     }
 </script>
 
 <style>
-    /* Custom CSS */
-    .table th, .table td {
-        vertical-align: middle;
+    th {
+        cursor: pointer;
     }
-    .table th {
-        text-align: center;
+
+    .btn-sm {
+        transition: 0.2s ease-in-out;
     }
-    .table td {
-        text-align: center;
+
+    .btn-sm:hover {
+        transform: scale(1.05);
     }
-    .table img {
-        border-radius: 50%;
+
+    .toast {
+        min-width: 200px;
     }
-    .input-group {
-        margin-left: auto;
-    }
-    .input-group-append {
-        margin-left: -1px;
-    }
-    .input-group input {
-        border-radius: 0.25rem;
-    }
-    .input-group button {
-        border-radius: 0 0.25rem 0.25rem 0;
-    }
-    .card-header {
-        border-bottom: 1px solid #dee2e6;
-    }
-    .card-body {
-        padding: 1.5rem;
-    }
-    .card-title {
-        margin-bottom: 0;
-    }
-    .card {
-        border-radius: 0.5rem;
-    }
-    .btn-success {
-        background-color: #28a745;
-        border-color: #28a745;
-    }
-    .btn-success:hover {
-        background-color: #218838;
-        border-color: #1e7e34;
+
+    .modal-header.bg-danger {
+        background-color: #dc3545 !important;
     }
 </style>
 {% endblock main_content %}

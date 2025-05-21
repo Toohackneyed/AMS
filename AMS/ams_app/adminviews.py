@@ -25,6 +25,7 @@ import openpyxl
 from openpyxl.styles import Font
 import io
 from io import BytesIO
+from utils.face_utils import extract_face_embedding
 from insightface.app import FaceAnalysis
 from scipy.spatial.distance import cosine
 from PIL import Image
@@ -51,8 +52,43 @@ from datetime import datetime
 from .tasks import process_face_encoding
 from ams_app.models import CustomUser, SessionTimeModel, Staffs, Courses, Subjects,Sections, Students, SessionYearModel, SubjectSchedule, Attendance, AttendanceReport, Enrollment, ScannedRFID
 
-# Admin DashBoard --------------------------------------------------------------------------------------------------------------------------------
 
+def about_us(request):
+    team_members = [
+        {
+            "name": "Samuel Lopez",
+            "role": "Role",
+            "description": "Description",
+            "image": "dist/img/Lopez.jpg",
+        },
+        {
+            "name": "Louren jan Rodriguez",
+            "role": "Role",
+            "description": "Description",
+            "image": "dist/img/Rodriguez.jpg",
+        },
+        {
+            "name": "John Crysler Semilla",
+            "role": "Role",
+            "description": "Description",
+            "image": "dist/img/Semilla.jpg",
+        },
+        {
+            "name": "Saralyn Marqueses",
+            "role": "Role",
+            "description": "Description",
+            "image": "dist/img/Marqueses.jpg",
+        },
+        {
+            "name": "Francis Moral",
+            "role": "Role",
+            "description": "Description",
+            "image": "dist/img/Moral.jpg",
+        },
+    ]
+
+    return render(request, "admin_template/about_us.html", {"team_members": team_members})
+# Admin DashBoard --------------------------------------------------------------------------------------------------------------------------------
 @login_required
 def admin_home(request):
     student_count = Students.objects.count()
@@ -204,6 +240,7 @@ def get_subjects_by_course(request):
         })
 
     return JsonResponse({"subjects": subject_list})
+
 
 def add_student(request):
     form = AddStudentForm()
@@ -1047,127 +1084,127 @@ def auto_mark_attendance_live(request):
         subject_id = int(subject_id)
         subject_schedule = SubjectSchedule.objects.get(id=subject_id)
         actual_subject = subject_schedule.subject
+
         enrollment = Enrollment.objects.filter(subject=actual_subject).first()
-
-        if enrollment:
-            session_year = enrollment.student.session_year_id
-        else:
+        if not enrollment:
             return JsonResponse({"error": "No session year found"}, status=400)
+        session_year = enrollment.student.session_year_id
 
-        image_data = np.frombuffer(image.read(), np.uint8)
-        img = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
-
-        if img is None:
-            return JsonResponse({"error": "Invalid image format"}, status=400)
-
-        img = cv2.resize(img, (640, 480))
-        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        face_locations = face_recognition.face_locations(rgb_img, model='hog')
-        face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
-
-        if not face_encodings:
+        input_embedding = extract_face_embedding(image)
+        if not input_embedding:
             return JsonResponse({"error": "No face detected"}, status=400)
 
+        input_embedding = np.array(input_embedding)
+
         students = Students.objects.exclude(face_encoding=None)
-        known_encodings = []
+        matched_student = None
+
         for student in students:
             try:
-                encoding_data = student.face_encoding
-                encoding = json.loads(encoding_data) if isinstance(encoding_data, str) else encoding_data
-                known_encodings.append(np.array(encoding))
+                db_encoding = np.array(json.loads(student.face_encoding))
+                similarity = np.dot(input_embedding, db_encoding) / (
+                    np.linalg.norm(input_embedding) * np.linalg.norm(db_encoding)
+                )
+                if similarity > 0.6:
+                    matched_student = student
+                    break
             except Exception as e:
-                print(f"⚠️ Skipping student {student.id} due to error: {e}")
+                print(f"⚠️ Error processing student {student.id}: {e}")
+                continue
 
-        for uploaded_encoding in face_encodings:
-            matches = face_recognition.compare_faces(known_encodings, uploaded_encoding)
-            if True in matches:
-                for idx, match in enumerate(matches):
-                    if match:
-                        matched_student = students[idx]
-                        break
+        if not matched_student:
+            return JsonResponse({"error": "No matching student found"}, status=404)
 
-                matched_name = matched_student.admin.get_full_name()
-                stored_rfid = matched_student.rfid
+        matched_name = matched_student.admin.get_full_name()
+        stored_rfid = matched_student.rfid
+        print(f"🔑 Recognized {matched_name} with RFID {stored_rfid}")
 
-                print(f"🔑 DEBUG: Face recognized for {matched_name} with RFID {stored_rfid}")
+        if not Enrollment.objects.filter(student=matched_student, subject=actual_subject).exists():
+            return JsonResponse({"error": "Student not enrolled in subject"}, status=400)
 
-                if not Enrollment.objects.filter(student=matched_student, subject=actual_subject).exists():
-                    return JsonResponse({"error": "Student is not enrolled in this subject"}, status=400)
+        try:
+            with open("rfid_tags.txt", "r") as file:
+                tags = file.read().splitlines()
+        except Exception:
+            return JsonResponse({"error": "RFID tag file error"}, status=500)
 
-                try:
-                    with open("rfid_tags.txt", "r") as file:
-                        tags = file.read().splitlines()
-                except Exception:
-                    return JsonResponse({"error": "RFID tag file error"}, status=500)
+        if stored_rfid not in tags:
+            return JsonResponse({"error": "RFID not detected or already used"}, status=400)
 
-                # Remove tag after use
-                # ✅ Require BOTH face match AND RFID presence
-                if stored_rfid not in tags:
-                    print(f"❌ RFID tag {stored_rfid} not detected for {matched_student.admin.get_full_name()}")
-                    return JsonResponse({"error": "RFID tag not detected or already used"}, status=400)
+        with open("used_rfid_tags.txt", "a") as used_file:
+            used_file.write(f"{stored_rfid}\n")
 
-                # 👉 Mark RFID as used but don't remove it yet
-                used_tag_path = "used_rfid_tags.txt"
-                try:
-                    with open(used_tag_path, "a") as used_file:
-                        used_file.write(f"{stored_rfid}\n")
-                    print(f"📝 Marked RFID {stored_rfid} as used (temporary)")
-                except Exception as e:
-                    print(f"⚠️ Failed to mark RFID as used: {e}")
+        now_time = timezone.now().time()
+        start_time = subject_schedule.start_time
+        time_diff = datetime.combine(date.today(), now_time) - datetime.combine(date.today(), start_time)
+        minutes_late = time_diff.total_seconds() / 60
 
-                now_time = timezone.now().time()
-                start_time = subject_schedule.start_time
-                time_diff = datetime.combine(date.today(), now_time) - datetime.combine(date.today(), start_time)
-                minutes_late = time_diff.total_seconds() / 60
+        if minutes_late <= 15:
+            status = "Present"
+        elif 15 < minutes_late <= 30:
+            status = "Late"
+        else:
+            status = "Absent"
 
-                if minutes_late <= 15:
-                    status = "Present"
-                elif 15 < minutes_late <= 30:
-                    status = "Late"
-                else:
-                    status = "Absent"
+        attendance, _ = Attendance.objects.get_or_create(
+            subject=actual_subject,
+            schedule=subject_schedule,
+            session_year=session_year,
+            attendance_date=date.today()
+        )
 
-                attendance, _ = Attendance.objects.get_or_create(
-                    subject=actual_subject,
-                    schedule=subject_schedule,
-                    session_year=session_year,
-                    attendance_date=date.today()
-                )
+        report, created = AttendanceReport.objects.get_or_create(
+            student=matched_student,
+            attendance=attendance
+        )
 
-                report, created = AttendanceReport.objects.get_or_create(
-                    student=matched_student,
-                    attendance=attendance
-                )
+        if not report.created_at:
+            report.created_at = timezone.now()
+            report.save()
 
-                if created:
-                    report.status = status
-                    report.created_at = timezone.now() 
-                    report.save()
-                    attendance.students.add(matched_student)
-                    attendance_time = timezone.now().strftime("%I:%M:%S %p")
-                else:
-                    status = report.status
-                    attendance_time = report.created_at.strftime("%I:%M:%S %p") if report.created_at else timezone.now().strftime("%I:%M:%S %p")
+        attendance_time = report.created_at.strftime("%I:%M:%S %p")
 
-                last_name = matched_student.admin.last_name
-                first_initial = matched_student.admin.first_name[0] if matched_student.admin.first_name else ""
-                formatted_name = f"{last_name}, {first_initial}"
+        # Update status only if newly created or if you want to allow status overwrite
+        if created:
+            report.status = status
+            report.save()
+            attendance.students.add(matched_student)
 
-                print(f"✅ SUCCESS: {status} marked for {formatted_name} ({stored_rfid}) at {attendance_time}")
 
-                return JsonResponse({
-                    "message": f"{status} recorded for {formatted_name}.",
-                    "rfid": stored_rfid,
-                    "status": status,
-                    "formatted_name": formatted_name,
-                    "attendance_time": attendance_time
-                })
+        last_name = matched_student.admin.last_name
+        first_initial = matched_student.admin.first_name[0] if matched_student.admin.first_name else ""
+        formatted_name = f"{last_name}, {first_initial}"
 
-        return JsonResponse({"error": "No matching student found"}, status=404)
+        print(f"✅ Marked {status} for {formatted_name} at {attendance_time}")
+
+        return JsonResponse({
+            "message": f"{status} recorded for {formatted_name}.",
+            "rfid": stored_rfid,
+            "status": status,
+            "formatted_name": formatted_name,
+            "attendance_time": attendance_time
+        })
 
     except Exception as e:
-        print(f"⚡ ERROR: Exception processing image -> {e}")
+        print(f"⚡ ERROR: {e}")
         return JsonResponse({"error": "Error processing image"}, status=500)
+
+@csrf_exempt
+def get_latest_rfids(request):
+    try:
+        rfid_file_path = os.path.join(os.getcwd(), "rfid_tags.txt")
+
+        if not os.path.exists(rfid_file_path):
+            return JsonResponse({"rfids": []})
+
+        with open(rfid_file_path, "r") as file:
+            tags = file.read().splitlines()
+
+        return JsonResponse({"rfids": tags})
+
+    except Exception as e:
+        print(f"⚠️ Error reading RFID tags: {e}")
+        return JsonResponse({"rfids": [], "error": "Could not read RFID tags"}, status=500) 
     
 def get_ongoing_subject(request):
     current_time = now().time()
