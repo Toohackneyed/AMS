@@ -1,0 +1,325 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Attendance Monitor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Bootstrap, Icons, Fonts -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="{% static 'dist/img/Logo.ico' %}">
+
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --fg: #2c3e50;
+      --card-bg: #ffffff;
+      --primary: #0d6efd;
+      --success: #198754;
+      --text-muted: #6c757d;
+    }
+
+    body.dark {
+      --bg: #121212;
+      --fg: #f0f0f0;
+      --card-bg: #1e1e2e;
+      --primary: #4d9bff;
+      --success: #6edfa1;
+      --text-muted: #aaaaaa;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg);
+      color: var(--fg);
+      transition: background-color 0.3s, color 0.3s;
+      padding-top: 70px;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 10px;
+      right: 15px;
+      z-index: 1000;
+      font-size: 1rem;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    h3, h5, p, li {
+      font-size: clamp(0.9rem, 1vw + 0.5rem, 1.2rem);
+    }
+
+    .clock {
+      font-weight: 500;
+      text-align: center;
+      color: var(--text-muted);
+      margin-bottom: 15px;
+    }
+
+    .video-container {
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    #video {
+      width: 100%;
+      height: auto;
+      border: 3px solid var(--primary);
+      border-radius: 12px;
+    }
+
+    #fullscreenBtn {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(13, 110, 253, 0.8);
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      font-size: 0.9rem;
+      border-radius: 5px;
+    }
+
+    .log-box {
+      background: var(--card-bg);
+      border-left: 5px solid var(--primary);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+
+    #rfiddiv {
+      border-left-color: var(--success);
+    }
+
+    .list-group-item {
+      background-color: var(--bg);
+      color: var(--fg);
+      border-left: 4px solid #ccc;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-weight: 500;
+      animation: fadeSlideIn 0.4s ease;
+    }
+
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .container-wrapper {
+      max-width: 1400px;
+      margin: auto;
+    }
+  </style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()">🌙 Toggle Mode</button>
+
+<div class="container-fluid container-wrapper">
+  <div class="row text-center mb-4">
+    <div class="col-12">
+      <h3 id="fixedMessage" class="text-primary">⏳ Checking ongoing class...</h3>
+      <div id="clock" class="clock"></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Video Feed -->
+    <div class="col-lg-7 col-md-12 mb-4">
+      <div class="video-container">
+        <video id="video" autoplay playsinline></video>
+        <button id="fullscreenBtn">🔍 Fullscreen</button>
+      </div>
+      <canvas id="canvas" hidden></canvas>
+      <p id="result" class="text-center text-info mt-3">⏳ Waiting for attendance...</p>
+    </div>
+
+    <!-- Logs -->
+    <div class="col-lg-5 col-md-12">
+      <div id="attendancediv" class="log-box">
+        <h5>📝 Attendance Log</h5>
+        <ul id="attendanceLog" class="list-group">
+          <li class="list-group-item no-record">No attendance recorded yet.</li>
+        </ul>
+      </div>
+
+      <div id="rfiddiv" class="log-box">
+        <h5>📟 Detected RFID</h5>
+        <ul id="rfidLog" class="list-group">
+          <li class="list-group-item no-rfid">No RFID detected yet.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const result = document.getElementById('result');
+const attendanceLog = document.getElementById('attendanceLog');
+const rfidLog = document.getElementById('rfidLog');
+const fixedMessage = document.getElementById('fixedMessage');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+let subjectId = null;
+let isProcessing = false;
+let interval;
+let isFullscreen = false;
+
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+    video.addEventListener('loadedmetadata', () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    });
+  } catch (err) {
+    console.error("Camera access error:", err);
+    result.innerText = "⚠️ Please allow camera access.";
+  }
+}
+startCamera();
+
+fullscreenBtn.addEventListener("click", () => {
+  if (!isFullscreen) {
+    video.requestFullscreen();
+    fullscreenBtn.innerText = "🔙 Exit Fullscreen";
+  } else {
+    document.exitFullscreen();
+    fullscreenBtn.innerText = "🔍 Fullscreen";
+  }
+  isFullscreen = !isFullscreen;
+});
+
+function toggleTheme() {
+  document.body.classList.toggle('dark');
+}
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString();
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+function checkOngoingClass() {
+  fetch("/api/get_ongoing_subject/", {
+    headers: { "X-API-KEY": "kiosk_9M6xP4lRMANfpWs9Xd1VJYKPurt70SbHdRcXuGXjBMg" }
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.subject_name && data.subject_id) {
+      fixedMessage.innerText = `✅ Ongoing Class: ${data.subject_name}`;
+      subjectId = data.subject_id;
+      startFaceRecognition();
+    } else {
+      fixedMessage.innerText = "⏳ No class currently ongoing.";
+      subjectId = null;
+    }
+  })
+  .catch(err => {
+    console.error("Schedule error:", err);
+    fixedMessage.innerText = "⚠️ Error fetching schedule.";
+  });
+}
+setInterval(checkOngoingClass, 3000);
+
+function pollRFIDLog() {
+  fetch("/api/get_latest_rfids/")
+    .then(res => res.json())
+    .then(data => {
+      rfidLog.innerHTML = "";
+      if (data.rfids && data.rfids.length > 0) {
+        data.rfids.slice(-3).reverse().forEach(rfid => {
+          const item = document.createElement("li");
+          item.classList.add("list-group-item");
+          item.innerText = `RFID: ${rfid}`;
+          rfidLog.appendChild(item);
+        });
+      } else {
+        rfidLog.innerHTML = `<li class="list-group-item no-rfid">No RFID detected yet.</li>`;
+      }
+    })
+    .catch(err => {
+      console.error("RFID error:", err);
+    });
+}
+setInterval(pollRFIDLog, 2000);
+
+function startFaceRecognition() {
+  if (interval) clearInterval(interval);
+  interval = setInterval(() => {
+    if (isProcessing || !subjectId) return;
+    isProcessing = true;
+    const context = canvas.getContext("2d");
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(blob => {
+      if (!blob) return isProcessing = false;
+      const formData = new FormData();
+      formData.append("image", blob, "snapshot.png");
+      formData.append("subject_id", subjectId);
+      fetch("/api/auto_mark_attendance_live/", {
+        method: "POST",
+        headers: {"X-API-KEY": "kiosk_9M6xP4lRMANfpWs9Xd1VJYKPurt70SbHdRcXuGXjBMg"},
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.message) {
+          addToAttendanceLog(data.formatted_name, data.status, data.attendance_time);
+          if (data.rfid) addToRFIDLog(data.rfid);
+          result.innerText = `✅ ${data.message}`;
+        } else {
+          result.innerText = data.error ? `❌ ${data.error}` : "❌ Attendance failed.";
+        }
+      })
+      .catch(err => {
+        console.error("Marking error:", err);
+        result.innerText = "⚠️ Error marking attendance.";
+      })
+      .finally(() => isProcessing = false);
+    }, "image/png");
+  }, 2000);
+}
+
+function addToAttendanceLog(name, status, timeStr) {
+  const noRecord = attendanceLog.querySelector(".no-record");
+  if (noRecord) noRecord.remove();
+  timeStr = timeStr || new Date().toLocaleTimeString();
+  if ([...attendanceLog.children].some(item => item.innerText.includes(name))) return;
+  const item = document.createElement("li");
+  item.className = "list-group-item";
+  item.innerText = `${name} - ${status} at ${timeStr}`;
+  attendanceLog.prepend(item);
+  if (attendanceLog.childElementCount > 3) attendanceLog.removeChild(attendanceLog.lastChild);
+}
+
+function addToRFIDLog(rfid) {
+  const noRFID = rfidLog.querySelector(".no-rfid");
+  if (noRFID) noRFID.remove();
+  const item = document.createElement("li");
+  item.className = "list-group-item";
+  item.innerText = `RFID: ${rfid}`;
+  rfidLog.prepend(item);
+  if (rfidLog.childElementCount > 3) rfidLog.removeChild(rfidLog.lastChild);
+}
+</script>
+</body>
+</html>

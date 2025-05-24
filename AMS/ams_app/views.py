@@ -1,249 +1,283 @@
 from django.shortcuts import render
-
-# Create your views here.
-from django.shortcuts import render
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
-from ams_app.EmailBackEnd import EmailBackEnd
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+from django.conf import settings
+from django.utils.timezone import now
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.decorators import api_view, parser_classes
+from rest_framework.parsers import MultiPartParser
+
 import os
+import json
+import numpy as np
+from datetime import datetime, date
 
-# import json
-# import os
-# import threading
-# import time
-# import re
-# import cv2
-# import numpy as np
-# import face_recognition
-# from datetime import datetime, date
-# from django.http import JsonResponse
-# from django.utils import timezone
-# from django.conf import settings
-# from django.utils.timezone import now
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework import status
+from ams_app.EmailBackEnd import EmailBackEnd
+from ams_app.models import Students, Subjects, Enrollment, Attendance, AttendanceReport, SubjectSchedule
+from ams_app.serializers import StudentSerializer, SubjectSerializer, AttendanceInputSerializer
+from utils.face_utils import extract_face_embedding
+from utils.api_auth import require_api_key
 
-# from .models import SubjectSchedule, Students, Enrollment, Attendance, AttendanceReport
 
-# Create your views here.
+# ======================== BASIC ROUTES ========================
+
 def dashboard(request):
-    return render(request,"dashboard.html")
+    return render(request, "dashboard.html")
 
 def LoginPage(request):
-    return render(request,"Login.html")
+    return render(request, "Login.html")
 
 def LoggedIn(request):
-    if request.method!="POST":
+    if request.method != "POST":
         return HttpResponse("<h2>Method Not Allowed</h2>")
-    else:
-        user =EmailBackEnd.authenticate(request,username=request.POST.get('email'),password=request.POST.get('password'))
-        if user!=None:
-            login(request,user)
-            if user.user_type=="1":
-                return HttpResponseRedirect('/admin_home')
-            elif user.user_type=="2":
-                return HttpResponseRedirect(reverse("staff_home"))
-            else:
-                return HttpResponseRedirect(reverse("student_home"))
-        else:
-            messages.error(request,'Invalid Login Details')
-            return HttpResponseRedirect('/')
     
-def GetUserDetails(request):
-    if request.user!=None:
-        return HttpResponse("User : "+request.user.email+" usertype : "+str(request.user.user_type))
+    user = EmailBackEnd.authenticate(request, username=request.POST.get('email'), password=request.POST.get('password'))
+    if user:
+        login(request, user)
+        if user.user_type == "1":
+            return HttpResponseRedirect('/admin_home')
+        elif user.user_type == "2":
+            return HttpResponseRedirect(reverse("staff_home"))
+        else:
+            return HttpResponseRedirect(reverse("student_home"))
     else:
-        return HttpResponse("Please Login First")
+        messages.error(request, 'Invalid Login Details')
+        return HttpResponseRedirect('/')
+
+def GetUserDetails(request):
+    if request.user:
+        return HttpResponse(f"User: {request.user.email}, usertype: {request.user.user_type}")
+    return HttpResponse("Please Login First")
 
 def Logout_user(request):
     logout(request)
     return HttpResponseRedirect("/")
 
-# def face_kiosk(request):
-#     return render(request,"face_kiosk.html")
+def monitoring_ui(request):
+    return render(request, 'monitor.html')
 
-# # Use KIOSK_API_KEY from Django settings
-# KIOSK_API_KEY = getattr(settings, "KIOSK_API_KEY", "kiosk_9M6xP4lRMANfpWs9Xd1VJYKPurt70SbHdRcXuGXjBMg")
-# # Common function for API Key Auth
-# def is_authenticated(request):
-#     client_key = request.headers.get("X-API-KEY")
-#     return client_key == KIOSK_API_KEY
 
-# class AutoMarkAttendanceView(APIView):
-#     def post(self, request):
-#         if not is_authenticated(request):
-#             return Response({"error": "Unauthorized"}, status=401)
+# ======================== API ROUTES ========================
 
-#         print("\n🔍 DEBUG: Request received!")
+@api_view(['GET'])
+def student_list(request):
+    students = Students.objects.all()
+    serializer = StudentSerializer(students, many=True)
+    return Response(serializer.data)
 
-#         subject_id = request.POST.get("subject_id")
-#         image = request.FILES.get("image")
+@api_view(['GET'])
+def subject_list(request):
+    subjects = Subjects.objects.all()
+    serializer = SubjectSerializer(subjects, many=True)
+    return Response(serializer.data)
 
-#         if not subject_id or subject_id == "undefined":
-#             return Response({"error": "Invalid subject ID"}, status=400)
+@api_view(['GET'])
+def get_latest_rfids(request):
+    try:
+        rfid_file = os.path.join(os.getcwd(), "rfid_tags.txt")
+        if not os.path.exists(rfid_file):
+            return Response({"rfids": []})
 
-#         if not image:
-#             return Response({"error": "Missing image"}, status=400)
+        with open(rfid_file, "r") as file:
+            rfids = file.read().splitlines()
 
-#         try:
-#             subject_id = int(subject_id)
-#             subject_schedule = SubjectSchedule.objects.get(id=subject_id)
-#             actual_subject = subject_schedule.subject
-#             enrollment = Enrollment.objects.filter(subject=actual_subject).first()
+        return Response({"rfids": rfids})
+    except Exception as e:
+        print(f"[RFID ERROR] {e}")
+        return Response({"rfids": [], "error": "Could not read RFID tags"}, status=500)
 
-#             if enrollment:
-#                 session_year = enrollment.student.session_year_id
-#             else:
-#                 return Response({"error": "No session year found"}, status=400)
 
-#             image_data = np.frombuffer(image.read(), np.uint8)
-#             img = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
+# ======================== ATTENDANCE LOGIC ========================
 
-#             if img is None:
-#                 return Response({"error": "Invalid image format"}, status=400)
+def process_attendance(subject_id, image):
+    try:
+        schedule = SubjectSchedule.objects.get(id=int(subject_id))
+        subject = schedule.subject
+    except SubjectSchedule.DoesNotExist:
+        raise Exception("Invalid subject ID")
 
-#             img = cv2.resize(img, (640, 480))
-#             rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-#             face_locations = face_recognition.face_locations(rgb_img, model='hog')
-#             face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
+    enrollment = Enrollment.objects.filter(subject=subject).first()
+    if not enrollment:
+        raise Exception("No enrollment found for subject")
+    
+    session_year = enrollment.student.session_year_id
 
-#             if not face_encodings:
-#                 return Response({"error": "No face detected"}, status=400)
+    embedding = extract_face_embedding(image)
+    if not embedding:
+        raise Exception("No face detected")
+    input_encoding = np.array(embedding)
 
-#             students = Students.objects.exclude(face_encoding=None)
-#             known_encodings = []
-#             for student in students:
-#                 try:
-#                     encoding_data = student.face_encoding
-#                     encoding = json.loads(encoding_data) if isinstance(encoding_data, str) else encoding_data
-#                     known_encodings.append(np.array(encoding))
-#                 except Exception as e:
-#                     print(f"⚠️ Skipping student {student.id} due to error: {e}")
+    matched_student = None
+    for student in Students.objects.exclude(face_encoding=None):
+        try:
+            db_encoding = np.array(json.loads(student.face_encoding))
+            similarity = np.dot(input_encoding, db_encoding) / (
+                np.linalg.norm(input_encoding) * np.linalg.norm(db_encoding)
+            )
+            if similarity > 0.6:
+                matched_student = student
+                break
+        except Exception:
+            continue
 
-#             for uploaded_encoding in face_encodings:
-#                 matches = face_recognition.compare_faces(known_encodings, uploaded_encoding)
-#                 if True in matches:
-#                     for idx, match in enumerate(matches):
-#                         if match:
-#                             matched_student = students[idx]
-#                             break
+    if not matched_student:
+        raise Exception("No matching student found")
 
-#                     matched_name = matched_student.admin.get_full_name()
-#                     stored_rfid = matched_student.rfid
+    try:
+        with open("rfid_tags.txt", "r") as file:
+            rfids = file.read().splitlines()
+    except Exception:
+        raise Exception("RFID file read error")
 
-#                     print(f"🔑 DEBUG: Face recognized for {matched_name} with RFID {stored_rfid}")
+    if matched_student.rfid not in rfids:
+        raise Exception("RFID not detected or already used")
 
-#                     if not Enrollment.objects.filter(student=matched_student, subject=actual_subject).exists():
-#                         return Response({"error": "Student is not enrolled in this subject"}, status=400)
+    with open("used_rfid_tags.txt", "a") as file:
+        file.write(f"{matched_student.rfid}\n")
 
-#                     try:
-#                         with open("rfid_tags.txt", "r") as file:
-#                             tags = file.read().splitlines()
-#                     except Exception:
-#                         return Response({"error": "RFID tag file error"}, status=500)
+    now_time = timezone.now().time()
+    start_time = schedule.start_time
+    minutes_late = (datetime.combine(date.today(), now_time) - datetime.combine(date.today(), start_time)).total_seconds() / 60
 
-#                     if stored_rfid not in tags:
-#                         print(f"❌ RFID tag {stored_rfid} not detected")
-#                         return Response({"error": "RFID tag not detected or already used"}, status=400)
+    if minutes_late <= 15:
+        status = "Present"
+    elif minutes_late <= 30:
+        status = "Late"
+    else:
+        status = "Absent"
 
-#                     used_tag_path = "used_rfid_tags.txt"
-#                     try:
-#                         with open(used_tag_path, "a") as used_file:
-#                             used_file.write(f"{stored_rfid}\n")
-#                     except Exception as e:
-#                         print(f"⚠️ Failed to mark RFID as used: {e}")
+    attendance, _ = Attendance.objects.get_or_create(
+        subject=subject,
+        schedule=schedule,
+        session_year=session_year,
+        attendance_date=date.today()
+    )
 
-#                     now_time = timezone.now().time()
-#                     start_time = subject_schedule.start_time
-#                     time_diff = datetime.combine(date.today(), now_time) - datetime.combine(date.today(), start_time)
-#                     minutes_late = time_diff.total_seconds() / 60
+    report, created = AttendanceReport.objects.get_or_create(
+        student=matched_student,
+        attendance=attendance
+    )
 
-#                     if minutes_late <= 15:
-#                         status_ = "Present"
-#                     elif 15 < minutes_late <= 30:
-#                         status_ = "Late"
-#                     else:
-#                         status_ = "Absent"
+    if not report.created_at:
+        report.created_at = timezone.now()
 
-#                     attendance, _ = Attendance.objects.get_or_create(
-#                         subject=actual_subject,
-#                         schedule=subject_schedule,
-#                         session_year=session_year,
-#                         attendance_date=date.today()
-#                     )
+    report.status = status
+    report.save()
+    attendance.students.add(matched_student)
 
-#                     report, created = AttendanceReport.objects.get_or_create(
-#                         student=matched_student,
-#                         attendance=attendance
-#                     )
+    formatted_name = f"{matched_student.admin.last_name}, {matched_student.admin.first_name[0]}"
+    return {
+        "message": f"{status} recorded for {formatted_name}.",
+        "rfid": matched_student.rfid,
+        "status": status,
+        "formatted_name": formatted_name,
+        "attendance_time": report.created_at.strftime("%I:%M %p")
+    }
 
-#                     if created:
-#                         report.status = status_
-#                         report.created_at = timezone.now()
-#                         report.save()
-#                         attendance.students.add(matched_student)
-#                         attendance_time = timezone.now().strftime("%I:%M:%S %p")
-#                     else:
-#                         status_ = report.status
-#                         attendance_time = report.created_at.strftime("%I:%M:%S %p") if report.created_at else timezone.now().strftime("%I:%M:%S %p")
 
-#                     last_name = matched_student.admin.last_name
-#                     first_initial = matched_student.admin.first_name[0] if matched_student.admin.first_name else ""
-#                     formatted_name = f"{last_name}, {first_initial}"
+@csrf_exempt
+@require_api_key
+@api_view(['POST'])
+@parser_classes([MultiPartParser])
+def auto_mark_attendance_live(request):
+    subject_id = request.POST.get("subject_id")
+    image = request.FILES.get("image")
 
-#                     print(f"✅ SUCCESS: {status_} marked for {formatted_name} ({stored_rfid}) at {attendance_time}")
+    if not subject_id or not image:
+        return Response({"error": "Missing subject_id or image"}, status=400)
 
-#                     return Response({
-#                         "message": f"{status_} recorded for {formatted_name}.",
-#                         "rfid": stored_rfid,
-#                         "status": status_,
-#                         "formatted_name": formatted_name,
-#                         "attendance_time": attendance_time
-#                     })
+    try:
+        result = process_attendance(subject_id, image)
+        return Response(result)
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)
 
-#             return Response({"error": "No matching student found"}, status=404)
 
-#         except Exception as e:
-#             print(f"⚡ ERROR: Exception processing image -> {e}")
-#             return Response({"error": "Error processing image"}, status=500)
+@api_view(['GET'])
+@require_api_key
+def get_ongoing_subject(request):
+    try:
+        now_time = timezone.now().time()
+        today = timezone.now().strftime("%A")
 
-# class GetOngoingSubjectView(APIView):
-#     def get(self, request):
-#         if not is_authenticated(request):
-#             return Response({"error": "Unauthorized"}, status=401)
+        today_subjects = SubjectSchedule.objects.filter(day_of_week=today).order_by("start_time")
+        current = today_subjects.filter(start_time__lte=now_time, end_time__gte=now_time).first()
 
-#         current_time = now().time()
-#         today = now().strftime("%A")
+        if current:
+            return Response({
+                "subject_id": current.id,
+                "subject_name": current.subject.subject_name,
+                "start_time": str(current.start_time),
+                "end_time": str(current.end_time),
+                "message": "Ongoing class is active"
+            })
 
-#         subjects_today = SubjectSchedule.objects.filter(day_of_week=today).order_by("start_time")
-#         ongoing_subject = subjects_today.filter(start_time__lte=current_time, end_time__gte=current_time).first()
+        last = today_subjects.last()
+        if last and now_time > last.end_time:
+            return Response({"message": "All scheduled classes for today have ended."})
 
-#         if ongoing_subject:
-#             return Response({
-#                 "subject_id": ongoing_subject.id,
-#                 "subject_name": ongoing_subject.subject.subject_name,
-#                 "start_time": str(ongoing_subject.start_time),
-#                 "end_time": str(ongoing_subject.end_time),
-#                 "message": "Ongoing class is active"
-#             })
+        next_class = today_subjects.filter(start_time__gt=now_time).first()
+        if next_class:
+            return Response({
+                "next_subject_id": next_class.id,
+                "next_subject_name": next_class.subject.subject_name,
+                "next_start_time": str(next_class.start_time),
+                "next_end_time": str(next_class.end_time),
+                "message": "Waiting for the next class to start"
+            })
 
-#         last_class = subjects_today.last()
-#         if last_class and current_time > last_class.end_time:
-            
-#             return Response({"message": "All scheduled classes for today have ended."}, status=200)
+        return Response({"error": "No ongoing class at the moment."}, status=404)
 
-#         next_class = subjects_today.filter(start_time__gt=current_time).first()
-#         if next_class:
-#             return Response({
-#                 "next_subject_id": next_class.id,
-#                 "next_subject_name": next_class.subject.subject_name,
-#                 "next_start_time": str(next_class.start_time),
-#                 "next_end_time": str(next_class.end_time),
-#                 "message": "Waiting for the next class to start"
-#             }, status=200)
+    except Exception as e:
+        print(f"[Schedule Error] {e}")
+        return Response({"error": "Server error"}, status=500)
 
-#         return Response({"error": "No ongoing class at the moment."}, status=404)
+
+class AttendanceMarkAPIView(APIView):
+    parser_classes = [MultiPartParser]
+
+    def post(self, request, *args, **kwargs):
+        serializer = AttendanceInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        subject_id = serializer.validated_data['subject_id']
+        image = serializer.validated_data['image']
+
+        try:
+            result = process_attendance(subject_id, image)
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+RFID_LOG_FILE = 'rfid_tags.txt'
+
+@csrf_exempt
+def rfid_endpoint(request):
+    if request.method == 'POST':
+        rfid = request.POST.get('rfid')
+        if rfid:
+            # Ensure file exists
+            if not os.path.exists(RFID_LOG_FILE):
+                open(RFID_LOG_FILE, 'w').close()
+
+            # Read all existing RFID tags
+            with open(RFID_LOG_FILE, 'r') as f:
+                existing_rfids = set(line.strip() for line in f)
+
+            if rfid not in existing_rfids:
+                with open(RFID_LOG_FILE, 'a') as f:
+                    f.write(rfid + '\n')
+                return JsonResponse({'status': 'success', 'rfid': rfid})
+            else:
+                return JsonResponse({'status': 'duplicate', 'rfid': rfid})
+        return JsonResponse({'status': 'error', 'message': 'Missing RFID'}, status=400)
+
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=405)

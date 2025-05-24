@@ -19,6 +19,7 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 
 from ams_app import views, adminviews, staffviews, studentviews
+# from ams_app import api_views  # Import api_views for API endpoints
 # from ams_app.views import AutoMarkAttendanceView, GetOngoingSubjectView
 from AMS import settings
 
@@ -30,11 +31,13 @@ urlpatterns = [
     path('get_user_details/', views.GetUserDetails),
     path('logout_user/', views.Logout_user, name="logout_user"),
     path('LoggedIn', views.LoggedIn, name="LoggedIn"),
-
-
-    # path('face-kiosk/', views.face_kiosk, name='face_kiosk'),
-    # path('api/auto_mark_attendance/', AutoMarkAttendanceView.as_view(), name='auto_mark_attendance'),
-    # path('api/get_ongoing_subject/', GetOngoingSubjectView.as_view(), name='get_ongoing_subject'),
+    path('monitor/', views.monitoring_ui, name='attendance_monitoring'),
+    path('api/students/', views.student_list, name='api_students'),
+    path('api/subjects/', views.subject_list, name='api_subjects'),
+    path('api/get_latest_rfids/', views.get_latest_rfids, name='api_latest_rfids'),
+    path('api/auto_mark_attendance_live/', views.auto_mark_attendance_live, name='auto_mark_attendance_live'),
+    path("api/get_ongoing_subject/", views.get_ongoing_subject, name="get_ongoing_subject"),
+    path('rfid-endpoint/', views.rfid_endpoint, name='rfid-endpoint'),
 
     path('admin_home/', adminviews.admin_home, name="admin_home"),
     path("about/", adminviews.about_us, name="about_page"),
@@ -83,6 +86,7 @@ urlpatterns = [
     path("download_attendance/", adminviews.download_attendance, name="download_attendance"),
     path("get_ongoing_subject/", adminviews.get_ongoing_subject, name="get_ongoing_subject"),
     path('get_latest_rfids/', adminviews.get_latest_rfids, name='get_latest_rfids'),
+
 
 
     path('reset-password/', auth_views.PasswordResetView.as_view(), name='reset_password'),

@@ -57,38 +57,40 @@ def about_us(request):
     team_members = [
         {
             "name": "Samuel Lopez",
-            "role": "Role",
-            "description": "Description",
+            "role": "Lead Developer",
+            "description": "Designs the overall system architecture and ensures the project meets its goals.",
             "image": "dist/img/Lopez.jpg",
         },
         {
             "name": "Louren jan Rodriguez",
-            "role": "Role",
-            "description": "Description",
+            "role": "QA/Test Engineer",
+            "description": "Tests the system to ensure it meets the required standards and functions correctly.",
             "image": "dist/img/Rodriguez.jpg",
         },
         {
             "name": "John Crysler Semilla",
-            "role": "Role",
-            "description": "Description",
+            "role": "Hardware/Embedded Developer",
+            "description": "Integrates hardware components with the software system, ensuring seamless communication.",
             "image": "dist/img/Semilla.jpg",
         },
         {
             "name": "Saralyn Marqueses",
-            "role": "Role",
-            "description": "Description",
+            "role": "System Analyst",
+            "description": "To analyze and design the system requirements, ensuring they align with user needs.",
             "image": "dist/img/Marqueses.jpg",
         },
         {
             "name": "Francis Moral",
-            "role": "Role",
-            "description": "Description",
+            "role": "Backend Developer",
+            "description": "Develops the server-side logic, database interactions, and API integrations.",
             "image": "dist/img/Moral.jpg",
         },
     ]
 
     return render(request, "admin_template/about_us.html", {"team_members": team_members})
+
 # Admin DashBoard --------------------------------------------------------------------------------------------------------------------------------
+
 @login_required
 def admin_home(request):
     student_count = Students.objects.count()
@@ -1058,11 +1060,10 @@ def delete_student(request, student_id):
     student.delete()
     return redirect('manage_student')
 
+#Face Recognition==================================================================================================================================
 def face_recognition_attendance(request):
     """Render the Face Recognition Attendance page."""
     return render(request, "admin_template/face_recognition_attendance.html")
-
-#Face Recognition==================================================================================================================================
 
 @csrf_exempt
 def auto_mark_attendance_live(request):

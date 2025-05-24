@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'ams_app',
     'django_extensions',
+    'rest_framework'
 ]
 
 MIDDLEWARE = [
@@ -155,4 +156,4 @@ AUTH_USER_MODEL="ams_app.CustomUser"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-# KIOSK_API_KEY = 'kiosk_9M6xP4lRMANfpWs9Xd1VJYKPurt70SbHdRcXuGXjBMg'
+KIOSK_API_KEY = 'kiosk_9M6xP4lRMANfpWs9Xd1VJYKPurt70SbHdRcXuGXjBMg'
