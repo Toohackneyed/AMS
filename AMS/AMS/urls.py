@@ -38,6 +38,7 @@ urlpatterns = [
     path('api/auto_mark_attendance_live/', views.auto_mark_attendance_live, name='auto_mark_attendance_live'),
     path("api/get_ongoing_subject/", views.get_ongoing_subject, name="get_ongoing_subject"),
     path('rfid-endpoint/', views.rfid_endpoint, name='rfid-endpoint'),
+    path('face-recognition/', views.recognize_face, name='face-recognition'),
 
     path('admin_home/', adminviews.admin_home, name="admin_home"),
     path("about/", adminviews.about_us, name="about_page"),

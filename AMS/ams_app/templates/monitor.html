@@ -169,18 +169,18 @@
 </div>
 
 <script>
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const result = document.getElementById('result');
-const attendanceLog = document.getElementById('attendanceLog');
-const rfidLog = document.getElementById('rfidLog');
-const fixedMessage = document.getElementById('fixedMessage');
-const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const result = document.getElementById('result');
+    const attendanceLog = document.getElementById('attendanceLog');
+    const rfidLog = document.getElementById('rfidLog');
+    const fixedMessage = document.getElementById('fixedMessage');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
 
-let subjectId = null;
-let isProcessing = false;
-let interval;
-let isFullscreen = false;
+    let subjectId = null;
+    let isProcessing = false;
+    let interval;
+    let isFullscreen = false;
 
 async function startCamera() {
   try {
@@ -219,107 +219,144 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-function checkOngoingClass() {
-  fetch("/api/get_ongoing_subject/", {
-    headers: { "X-API-KEY": "kiosk_9M6xP4lRMANfpWs9Xd1VJYKPurt70SbHdRcXuGXjBMg" }
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.subject_name && data.subject_id) {
-      fixedMessage.innerText = `✅ Ongoing Class: ${data.subject_name}`;
-      subjectId = data.subject_id;
-      startFaceRecognition();
-    } else {
-      fixedMessage.innerText = "⏳ No class currently ongoing.";
-      subjectId = null;
+    function formatTime(timeStr) {
+        if (!timeStr || timeStr === "Invalid Date") return "Unknown Time";
+        const date = new Date("1970-01-01T" + timeStr);
+        if (isNaN(date)) return "Unknown Time";
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
-  })
-  .catch(err => {
-    console.error("Schedule error:", err);
-    fixedMessage.innerText = "⚠️ Error fetching schedule.";
-  });
-}
-setInterval(checkOngoingClass, 3000);
 
-function pollRFIDLog() {
-  fetch("/api/get_latest_rfids/")
-    .then(res => res.json())
-    .then(data => {
-      rfidLog.innerHTML = "";
-      if (data.rfids && data.rfids.length > 0) {
-        data.rfids.slice(-3).reverse().forEach(rfid => {
-          const item = document.createElement("li");
-          item.classList.add("list-group-item");
-          item.innerText = `RFID: ${rfid}`;
-          rfidLog.appendChild(item);
-        });
-      } else {
-        rfidLog.innerHTML = `<li class="list-group-item no-rfid">No RFID detected yet.</li>`;
-      }
-    })
-    .catch(err => {
-      console.error("RFID error:", err);
-    });
-}
-setInterval(pollRFIDLog, 2000);
+    function addToAttendanceLog(name, status, timeStr) {
+        const noRecordMessage = attendanceLog.querySelector('.no-record');
+        if (noRecordMessage) noRecordMessage.remove();
 
-function startFaceRecognition() {
-  if (interval) clearInterval(interval);
-  interval = setInterval(() => {
-    if (isProcessing || !subjectId) return;
-    isProcessing = true;
-    const context = canvas.getContext("2d");
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(blob => {
-      if (!blob) return isProcessing = false;
-      const formData = new FormData();
-      formData.append("image", blob, "snapshot.png");
-      formData.append("subject_id", subjectId);
-      fetch("/api/auto_mark_attendance_live/", {
-        method: "POST",
-        headers: {"X-API-KEY": "kiosk_9M6xP4lRMANfpWs9Xd1VJYKPurt70SbHdRcXuGXjBMg"},
-        body: formData
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.message) {
-          addToAttendanceLog(data.formatted_name, data.status, data.attendance_time);
-          if (data.rfid) addToRFIDLog(data.rfid);
-          result.innerText = `✅ ${data.message}`;
-        } else {
-          result.innerText = data.error ? `❌ ${data.error}` : "❌ Attendance failed.";
+        if (!timeStr || timeStr === "Unknown Time") {
+            const now = new Date();
+            timeStr = now.toLocaleTimeString();  // fallback time
         }
-      })
-      .catch(err => {
-        console.error("Marking error:", err);
-        result.innerText = "⚠️ Error marking attendance.";
-      })
-      .finally(() => isProcessing = false);
-    }, "image/png");
-  }, 2000);
-}
 
-function addToAttendanceLog(name, status, timeStr) {
-  const noRecord = attendanceLog.querySelector(".no-record");
-  if (noRecord) noRecord.remove();
-  timeStr = timeStr || new Date().toLocaleTimeString();
-  if ([...attendanceLog.children].some(item => item.innerText.includes(name))) return;
-  const item = document.createElement("li");
-  item.className = "list-group-item";
-  item.innerText = `${name} - ${status} at ${timeStr}`;
-  attendanceLog.prepend(item);
-  if (attendanceLog.childElementCount > 3) attendanceLog.removeChild(attendanceLog.lastChild);
-}
+        const entry = `${name} - ${status} at ${timeStr}`;
 
-function addToRFIDLog(rfid) {
-  const noRFID = rfidLog.querySelector(".no-rfid");
-  if (noRFID) noRFID.remove();
-  const item = document.createElement("li");
-  item.className = "list-group-item";
-  item.innerText = `RFID: ${rfid}`;
-  rfidLog.prepend(item);
-  if (rfidLog.childElementCount > 3) rfidLog.removeChild(rfidLog.lastChild);
-}
+        // Avoid duplicate entries
+        if ([...attendanceLog.children].some(item => item.innerText.includes(name))) return;
+
+        const newItem = document.createElement("li");
+        newItem.classList.add("list-group-item");
+        newItem.innerText = entry;
+        attendanceLog.prepend(newItem);
+
+        if (attendanceLog.childElementCount > 3) {
+            attendanceLog.removeChild(attendanceLog.lastChild);
+        }
+    }
+
+    function addToRFIDLog(rfid) {
+        const noRfidMessage = rfidLog.querySelector('.no-rfid');
+        if (noRfidMessage) noRfidMessage.remove();
+
+        const newItem = document.createElement("li");
+        newItem.classList.add("list-group-item");
+        newItem.innerText = `RFID: ${rfid}`;
+        rfidLog.prepend(newItem);
+
+        while (rfidLog.childElementCount > 3) {
+            rfidLog.removeChild(rfidLog.lastChild);
+        }
+    }
+
+    function checkOngoingClass() {
+        fetch("/api/get_ongoing_subject/")
+            .then(res => res.json())
+            .then(data => {
+                if (data.subject_id) {
+                    subjectId = data.subject_id;
+                    fixedMessage.innerText = `📚 Ongoing Class: ${data.subject_name}`;
+                    startFaceRecognition();
+                } else {
+                    fixedMessage.innerText = "❌ No ongoing class.";
+                }
+            })
+            .catch(err => {
+                console.error("Schedule check error:", err);
+                fixedMessage.innerText = "⚠️ Error fetching schedule.";
+            });
+    }
+    setInterval(checkOngoingClass, 3000);
+
+    function pollRFIDLog() {
+        fetch("/api/get_latest_rfids/")
+            .then(res => res.json())
+            .then(data => {
+                if (data.rfids && data.rfids.length > 0) {
+                    rfidLog.innerHTML = "";
+                    data.rfids.slice(-3).reverse().forEach(rfid => {
+                        const newItem = document.createElement("li");
+                        newItem.classList.add("list-group-item");
+                        newItem.innerText = `RFID: ${rfid}`;
+                        rfidLog.appendChild(newItem);
+                    });
+                } else {
+                    if (!rfidLog.querySelector(".no-rfid")) {
+                        rfidLog.innerHTML = `<li class="list-group-item no-rfid">No RFID detected yet.</li>`;
+                    }
+                }
+            })
+            .catch(err => {
+                console.error("Error fetching RFID log:", err);
+            });
+    }
+    setInterval(pollRFIDLog, 2000);
+
+    function startFaceRecognition() {
+        if (interval) clearInterval(interval);
+
+        interval = setInterval(() => {
+            if (isProcessing || !subjectId) return;
+
+            isProcessing = true;
+
+            const context = canvas.getContext("2d");
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(blob => {
+                if (!blob) {
+                    console.error("❌ Failed to capture image.");
+                    isProcessing = false;
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append("image", blob, "snapshot.png");
+                formData.append("subject_id", subjectId);
+
+                fetch("/api/auto_mark_attendance_live/", {
+                    method: "POST",
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.message) {
+                        addToAttendanceLog(data.formatted_name, data.status, data.attendance_time);
+                        if (data.rfid) {
+                            addToRFIDLog(data.rfid);
+                        }
+                        result.innerText = `✅ ${data.message}`;
+                    } else if (data.error) {
+                        result.innerText = `❌ ${data.error}`;
+                    } else {
+                        result.innerText = "❌ Attendance failed.";
+                    }
+                })
+                .catch(err => {
+                    console.error("Attendance error:", err);
+                    result.innerText = "⚠️ Error marking attendance.";
+                })
+                .finally(() => {
+                    isProcessing = false;
+                });
+            }, "image/png");
+        }, 2000);
+    }
 </script>
 </body>
 </html>

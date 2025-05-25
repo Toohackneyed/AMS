@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
+from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -70,6 +71,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'ams_app.LoginCheckMiddleWare.LoginCheckMiddleWare',
+
 ]
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
@@ -156,4 +158,18 @@ AUTH_USER_MODEL="ams_app.CustomUser"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-KIOSK_API_KEY = 'kiosk_9M6xP4lRMANfpWs9Xd1VJYKPurt70SbHdRcXuGXjBMg'
+KIOSK_API_KEY = config('KIOSK_API_KEY', default='dev-key')
+
+print("🔍 Loaded KIOSK_API_KEY:", repr(KIOSK_API_KEY))
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+}
+
+# settings.py
+CSRF_TRUSTED_ORIGINS = [
+    "https://192.168.0.50:8000",
+]
