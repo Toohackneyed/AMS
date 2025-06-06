@@ -5,13 +5,10 @@
   <meta charset="UTF-8">
   <title>Attendance Monitor</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Bootstrap, Icons, Fonts -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="{% static 'dist/img/Logo.ico' %}">
-
   <style>
     :root {
       --bg: #f0f4f8;
@@ -21,7 +18,6 @@
       --success: #198754;
       --text-muted: #6c757d;
     }
-
     body.dark {
       --bg: #121212;
       --fg: #f0f0f0;
@@ -30,15 +26,13 @@
       --success: #6edfa1;
       --text-muted: #aaaaaa;
     }
-
     body {
       font-family: 'Inter', sans-serif;
       background-color: var(--bg);
       color: var(--fg);
       transition: background-color 0.3s, color 0.3s;
-      padding-top: 70px;
+      padding-top: 90px;
     }
-
     .theme-toggle {
       position: fixed;
       top: 10px;
@@ -52,34 +46,25 @@
       border-radius: 8px;
       cursor: pointer;
     }
-
-    h3, h5, p, li {
-      font-size: clamp(0.9rem, 1vw + 0.5rem, 1.2rem);
-    }
-
     .clock {
       font-weight: 500;
       text-align: center;
       color: var(--text-muted);
       margin-bottom: 15px;
     }
-
     .video-container {
       position: relative;
       width: 100%;
-      max-width: 100%;
       background: #000;
       border-radius: 12px;
       overflow: hidden;
     }
-
     #video {
       width: 100%;
       height: auto;
       border: 3px solid var(--primary);
       border-radius: 12px;
     }
-
     #fullscreenBtn {
       position: absolute;
       bottom: 10px;
@@ -91,7 +76,6 @@
       font-size: 0.9rem;
       border-radius: 5px;
     }
-
     .log-box {
       background: var(--card-bg);
       border-left: 5px solid var(--primary);
@@ -100,11 +84,9 @@
       margin-bottom: 20px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.05);
     }
-
     #rfiddiv {
       border-left-color: var(--success);
     }
-
     .list-group-item {
       background-color: var(--bg);
       color: var(--fg);
@@ -114,22 +96,34 @@
       font-weight: 500;
       animation: fadeSlideIn 0.4s ease;
     }
-
     @keyframes fadeSlideIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
-
     .container-wrapper {
       max-width: 1400px;
       margin: auto;
+    }
+    .header-bar {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      z-index: 999;
+      background: var(--card-bg);
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      border-bottom: 1px solid #ddd;
     }
   </style>
 </head>
 <body>
 
+<!-- 🌙 Toggle Button -->
 <button class="theme-toggle" onclick="toggleTheme()">🌙 Toggle Mode</button>
 
+<!-- 🔲 Main Container -->
 <div class="container-fluid container-wrapper">
   <div class="row text-center mb-4">
     <div class="col-12">
@@ -139,8 +133,8 @@
   </div>
 
   <div class="row">
-    <!-- Video Feed -->
-    <div class="col-lg-7 col-md-12 mb-4">
+    <!-- 📷 Left: Video Stream -->
+    <div class="col-lg-6 col-md-12 mb-4">
       <div class="video-container">
         <video id="video" autoplay playsinline></video>
         <button id="fullscreenBtn">🔍 Fullscreen</button>
@@ -149,10 +143,17 @@
       <p id="result" class="text-center text-info mt-3">⏳ Waiting for attendance...</p>
     </div>
 
-    <!-- Logs -->
-    <div class="col-lg-5 col-md-12">
+    <!-- 📋 Right: Logs -->
+    <div class="col-lg-6 col-md-12">
+      <div id="staffdiv" class="log-box">
+        <h5>👨‍🏫 Staff Attendance Log</h5>
+        <ul id="staffLog" class="list-group">
+          <li class="list-group-item no-staff">No staff attendance yet.</li>
+        </ul>
+      </div>
+
       <div id="attendancediv" class="log-box">
-        <h5>📝 Attendance Log</h5>
+        <h5>📝 Student Attendance Log</h5>
         <ul id="attendanceLog" class="list-group">
           <li class="list-group-item no-record">No attendance recorded yet.</li>
         </ul>
@@ -169,194 +170,200 @@
 </div>
 
 <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const result = document.getElementById('result');
-    const attendanceLog = document.getElementById('attendanceLog');
-    const rfidLog = document.getElementById('rfidLog');
-    const fixedMessage = document.getElementById('fixedMessage');
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const result = document.getElementById('result');
+  const attendanceLog = document.getElementById('attendanceLog');
+  const rfidLog = document.getElementById('rfidLog');
+  const fixedMessage = document.getElementById('fixedMessage');
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
+  const staffLog = document.getElementById("staffLog");
 
-    let subjectId = null;
-    let isProcessing = false;
-    let interval;
-    let isFullscreen = false;
+  let subjectId = null;
+  let isProcessing = false;
+  let interval;
+  let isFullscreen = false;
 
-async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = stream;
-    video.addEventListener('loadedmetadata', () => {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-    });
-  } catch (err) {
-    console.error("Camera access error:", err);
-    result.innerText = "⚠️ Please allow camera access.";
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      video.addEventListener('loadedmetadata', () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      });
+    } catch (err) {
+      console.error("Camera access error:", err);
+      result.innerText = "⚠️ Please allow camera access.";
+    }
   }
-}
-startCamera();
+  startCamera();
 
-fullscreenBtn.addEventListener("click", () => {
-  if (!isFullscreen) {
-    video.requestFullscreen();
-    fullscreenBtn.innerText = "🔙 Exit Fullscreen";
-  } else {
-    document.exitFullscreen();
-    fullscreenBtn.innerText = "🔍 Fullscreen";
+  fullscreenBtn.addEventListener("click", () => {
+    if (!isFullscreen) {
+      video.requestFullscreen();
+      fullscreenBtn.innerText = "🔙 Exit Fullscreen";
+    } else {
+      document.exitFullscreen();
+      fullscreenBtn.innerText = "🔍 Fullscreen";
+    }
+    isFullscreen = !isFullscreen;
+  });
+
+  function toggleTheme() {
+    document.body.classList.toggle('dark');
   }
-  isFullscreen = !isFullscreen;
-});
 
-function toggleTheme() {
-  document.body.classList.toggle('dark');
-}
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString();
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
 
-function updateClock() {
-  const now = new Date();
-  document.getElementById('clock').textContent = now.toLocaleTimeString();
-}
-setInterval(updateClock, 1000);
-updateClock();
+  function formatTime(timeStr) {
+    const date = new Date("1970-01-01T" + timeStr);
+    return isNaN(date) ? new Date().toLocaleTimeString() : date.toLocaleTimeString();
+  }
 
-    function formatTime(timeStr) {
-        if (!timeStr || timeStr === "Invalid Date") return "Unknown Time";
-        const date = new Date("1970-01-01T" + timeStr);
-        if (isNaN(date)) return "Unknown Time";
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  function addToAttendanceLog(name, status, timeStr) {
+    const noRecordMessage = attendanceLog.querySelector('.no-record');
+    if (noRecordMessage) noRecordMessage.remove();
+
+    if ([...attendanceLog.children].some(item => item.innerText.includes(name))) return;
+
+    const entry = `${name} - ${status} at ${formatTime(timeStr)}`;
+    const newItem = document.createElement("li");
+    newItem.classList.add("list-group-item");
+    newItem.innerText = entry;
+    attendanceLog.prepend(newItem);
+
+    if (attendanceLog.childElementCount > 3) {
+      attendanceLog.removeChild(attendanceLog.lastChild);
     }
+  }
 
-    function addToAttendanceLog(name, status, timeStr) {
-        const noRecordMessage = attendanceLog.querySelector('.no-record');
-        if (noRecordMessage) noRecordMessage.remove();
+  function addToStaffLog(name, status, timeStr) {
+    const noStaffMessage = staffLog.querySelector('.no-staff');
+    if (noStaffMessage) noStaffMessage.remove();
 
-        if (!timeStr || timeStr === "Unknown Time") {
-            const now = new Date();
-            timeStr = now.toLocaleTimeString();  // fallback time
+    if ([...staffLog.children].some(item => item.innerText.includes(name))) return;
+
+    const entry = `${name} - ${status} at ${formatTime(timeStr)}`;
+    const newItem = document.createElement("li");
+    newItem.classList.add("list-group-item");
+    newItem.innerText = entry;
+    staffLog.prepend(newItem);
+
+    if (staffLog.childElementCount > 3) {
+      staffLog.removeChild(staffLog.lastChild);
+    }
+  }
+
+  function addToRFIDLog(rfid) {
+    const noRfidMessage = rfidLog.querySelector('.no-rfid');
+    if (noRfidMessage) noRfidMessage.remove();
+
+    const newItem = document.createElement("li");
+    newItem.classList.add("list-group-item");
+    newItem.innerText = `RFID: ${rfid}`;
+    rfidLog.prepend(newItem);
+
+    while (rfidLog.childElementCount > 3) {
+      rfidLog.removeChild(rfidLog.lastChild);
+    }
+  }
+
+  function checkOngoingClass() {
+    fetch("/api/get_ongoing_subject/")
+      .then(res => res.json())
+      .then(data => {
+        if (data.subject_id) {
+          subjectId = data.subject_id;
+          fixedMessage.innerText = `📚 Ongoing Class: ${data.subject_name}`;
+          startFaceRecognition();
+        } else {
+          fixedMessage.innerText = "❌ No ongoing class.";
         }
+      })
+      .catch(err => {
+        console.error("Schedule check error:", err);
+        fixedMessage.innerText = "⚠️ Error fetching schedule.";
+      });
+  }
+  setInterval(checkOngoingClass, 3000);
 
-        const entry = `${name} - ${status} at ${timeStr}`;
-
-        // Avoid duplicate entries
-        if ([...attendanceLog.children].some(item => item.innerText.includes(name))) return;
-
-        const newItem = document.createElement("li");
-        newItem.classList.add("list-group-item");
-        newItem.innerText = entry;
-        attendanceLog.prepend(newItem);
-
-        if (attendanceLog.childElementCount > 3) {
-            attendanceLog.removeChild(attendanceLog.lastChild);
+  function pollRFIDLog() {
+    fetch("/api/get_latest_rfids/")
+      .then(res => res.json())
+      .then(data => {
+        if (data.rfids && data.rfids.length > 0) {
+          rfidLog.innerHTML = "";
+          data.rfids.slice(-3).reverse().forEach(rfid => {
+            const newItem = document.createElement("li");
+            newItem.classList.add("list-group-item");
+            newItem.innerText = `RFID: ${rfid}`;
+            rfidLog.appendChild(newItem);
+          });
+        } else {
+          if (!rfidLog.querySelector(".no-rfid")) {
+            rfidLog.innerHTML = `<li class="list-group-item no-rfid">No RFID detected yet.</li>`;
+          }
         }
-    }
+      })
+      .catch(err => {
+        console.error("Error fetching RFID log:", err);
+      });
+  }
+  setInterval(pollRFIDLog, 2000);
 
-    function addToRFIDLog(rfid) {
-        const noRfidMessage = rfidLog.querySelector('.no-rfid');
-        if (noRfidMessage) noRfidMessage.remove();
+  function startFaceRecognition() {
+    if (interval) clearInterval(interval);
+    interval = setInterval(() => {
+      if (isProcessing || !subjectId) return;
+      isProcessing = true;
 
-        const newItem = document.createElement("li");
-        newItem.classList.add("list-group-item");
-        newItem.innerText = `RFID: ${rfid}`;
-        rfidLog.prepend(newItem);
+      const context = canvas.getContext("2d");
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        while (rfidLog.childElementCount > 3) {
-            rfidLog.removeChild(rfidLog.lastChild);
-        }
-    }
+      canvas.toBlob(blob => {
+        if (!blob) return (isProcessing = false);
 
-    function checkOngoingClass() {
-        fetch("/api/get_ongoing_subject/")
-            .then(res => res.json())
-            .then(data => {
-                if (data.subject_id) {
-                    subjectId = data.subject_id;
-                    fixedMessage.innerText = `📚 Ongoing Class: ${data.subject_name}`;
-                    startFaceRecognition();
-                } else {
-                    fixedMessage.innerText = "❌ No ongoing class.";
-                }
-            })
-            .catch(err => {
-                console.error("Schedule check error:", err);
-                fixedMessage.innerText = "⚠️ Error fetching schedule.";
-            });
-    }
-    setInterval(checkOngoingClass, 3000);
+        const formData = new FormData();
+        formData.append("image", blob, "snapshot.png");
+        formData.append("subject_id", subjectId);
 
-    function pollRFIDLog() {
-        fetch("/api/get_latest_rfids/")
-            .then(res => res.json())
-            .then(data => {
-                if (data.rfids && data.rfids.length > 0) {
-                    rfidLog.innerHTML = "";
-                    data.rfids.slice(-3).reverse().forEach(rfid => {
-                        const newItem = document.createElement("li");
-                        newItem.classList.add("list-group-item");
-                        newItem.innerText = `RFID: ${rfid}`;
-                        rfidLog.appendChild(newItem);
-                    });
-                } else {
-                    if (!rfidLog.querySelector(".no-rfid")) {
-                        rfidLog.innerHTML = `<li class="list-group-item no-rfid">No RFID detected yet.</li>`;
-                    }
-                }
-            })
-            .catch(err => {
-                console.error("Error fetching RFID log:", err);
-            });
-    }
-    setInterval(pollRFIDLog, 2000);
+        fetch("/api/auto_mark_attendance_live/", {
+          method: "POST",
+          body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.message) {
+            if (data.role === "staff") {
+              addToStaffLog(data.formatted_name, data.status, data.attendance_time);
+            } else {
+              addToAttendanceLog(data.formatted_name, data.status, data.attendance_time);
+            }
 
-    function startFaceRecognition() {
-        if (interval) clearInterval(interval);
-
-        interval = setInterval(() => {
-            if (isProcessing || !subjectId) return;
-
-            isProcessing = true;
-
-            const context = canvas.getContext("2d");
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            canvas.toBlob(blob => {
-                if (!blob) {
-                    console.error("❌ Failed to capture image.");
-                    isProcessing = false;
-                    return;
-                }
-
-                const formData = new FormData();
-                formData.append("image", blob, "snapshot.png");
-                formData.append("subject_id", subjectId);
-
-                fetch("/api/auto_mark_attendance_live/", {
-                    method: "POST",
-                    body: formData
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.message) {
-                        addToAttendanceLog(data.formatted_name, data.status, data.attendance_time);
-                        if (data.rfid) {
-                            addToRFIDLog(data.rfid);
-                        }
-                        result.innerText = `✅ ${data.message}`;
-                    } else if (data.error) {
-                        result.innerText = `❌ ${data.error}`;
-                    } else {
-                        result.innerText = "❌ Attendance failed.";
-                    }
-                })
-                .catch(err => {
-                    console.error("Attendance error:", err);
-                    result.innerText = "⚠️ Error marking attendance.";
-                })
-                .finally(() => {
-                    isProcessing = false;
-                });
-            }, "image/png");
-        }, 2000);
-    }
+            if (data.rfid) addToRFIDLog(data.rfid);
+            result.innerText = `✅ ${data.message}`;
+          } else if (data.error) {
+            result.innerText = `❌ ${data.error}`;
+          } else {
+            result.innerText = "❌ Attendance failed.";
+          }
+        })
+        .catch(err => {
+          console.error("Attendance error:", err);
+          result.innerText = "⚠️ Error marking attendance.";
+        })
+        .finally(() => {
+          isProcessing = false;
+        });
+      }, "image/png");
+    }, 2000);
+  }
 </script>
 </body>
 </html>

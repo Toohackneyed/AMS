@@ -1,22 +1,6 @@
-"""AMS URL Configuration
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/3.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path
-
 from ams_app import views, adminviews, staffviews, studentviews
 from AMS import settings
 
@@ -73,9 +57,6 @@ urlpatterns = [
     path("download_attendance/", adminviews.download_attendance, name="download_attendance"),
     path("get_ongoing_subject/", adminviews.get_ongoing_subject, name="get_ongoing_subject"),
     path("recognize_student/", adminviews.recognize_student, name="recognize_student"),
-
-
-
                   #     Staff URL Path
     path('staff_home/', staffviews.staff_home, name="staff_home"),
     path('staff_take_attendance/', staffviews.staff_take_attendance, name="staff_take_attendance"),
@@ -86,7 +67,6 @@ urlpatterns = [
     path('get_students', staffviews.get_students, name="get_students"),
     path('staff_profile', staffviews.staff_profile, name="staff_profile"),
     path('staff_profile_save', staffviews.staff_profile_save, name="staff_profile_save"),
-
                  #      Students URL Path
     path('student_home/', studentviews.student_home, name="student_home"),
     path('student_view_attendance/', studentviews.student_view_attendance, name='student_view_attendance'),

@@ -14,6 +14,17 @@ View Attendance
                         <h3 class="card-title">View Attendance</h3>
                     </div>
                     <div class="card-body">
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="fw-bold">Attendance Type</label>
+                                <select class="form-select" id="attendance_type">
+                                    <option value="student">Student</option>
+                                    <option value="staff">Staff</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label class="fw-bold">Subject</label>
@@ -62,6 +73,7 @@ View Attendance
                                 </select>
                             </div>
                         </div>
+
                     </div>
                     <div class="card-footer d-flex justify-content-between">
                         <button type="button" class="btn btn-primary" id="fetch_attendance"><i class="fas fa-search"></i> Fetch Attendance</button>
@@ -86,7 +98,7 @@ View Attendance
             }
         }
 
-        // 🔁 Auto-filter schedule options by subject
+        // Auto-filter schedule options by selected subject
         $("#subject").on("change", function () {
             const selectedSubject = $(this).val();
             $("#schedule option").each(function () {
@@ -100,7 +112,7 @@ View Attendance
             $("#schedule").val($("#schedule option:visible:first").val());
         }).trigger("change");
 
-        // 📌 Fetch Attendance
+        // Fetch Attendance
         $("#fetch_attendance").click(function () {
             const subject = $("#subject").val();
             const session_year = $("#session_year").val();
@@ -108,6 +120,7 @@ View Attendance
             const start_date = $("#start_date").val();
             const end_date = $("#end_date").val();
             const get_all_schedules = $("#get_all_schedules").is(":checked");
+            const attendance_type = $("#attendance_type").val();
 
             if (!subject || !session_year || !start_date || !end_date) {
                 alert("Please select all required fields.");
@@ -127,7 +140,8 @@ View Attendance
                     schedule,
                     start_date,
                     end_date,
-                    get_all_schedules
+                    get_all_schedules,
+                    attendance_type
                 }),
                 success: function (response) {
                     toggleLoading(false);
@@ -137,11 +151,13 @@ View Attendance
                         return;
                     }
 
+                    const label = attendance_type === "staff" ? "Staff Name" : "Student Name";
+
                     let table_data = `
                         <table class='table table-bordered'>
                             <thead>
                                 <tr>
-                                    <th>Student Name</th>
+                                    <th>${label}</th>
                                     <th>Date</th>
                                     <th>Schedule</th>
                                     <th>Status</th>
@@ -174,7 +190,7 @@ View Attendance
             });
         });
 
-        // 📥 Download Attendance
+        // Download Attendance
         $("#download_attendance").click(function () {
             const subject = $("#subject").val();
             const session_year = $("#session_year").val();
@@ -182,6 +198,7 @@ View Attendance
             const start_date = $("#start_date").val();
             const end_date = $("#end_date").val();
             const get_all_schedules = $("#get_all_schedules").is(":checked");
+            const attendance_type = $("#attendance_type").val();
 
             const requestData = JSON.stringify({
                 subject,
@@ -189,7 +206,8 @@ View Attendance
                 schedule,
                 start_date,
                 end_date,
-                get_all_schedules
+                get_all_schedules,
+                attendance_type
             });
 
             fetch("{% url 'download_attendance' %}", {

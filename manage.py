@@ -1,9 +1,7 @@
-#!/usr/bin/env python
-"""Django's command-line utility for administrative tasks."""
 import os
 import sys
 
-
+# This script is used to manage a Django project. It sets the default settings module and executes command-line utilities for Django.
 def main():
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'AMS.settings')
     try:
@@ -15,7 +13,6 @@ def main():
             "forget to activate a virtual environment?"
         ) from exc
     execute_from_command_line(sys.argv)
-
 
 if __name__ == '__main__':
     main()

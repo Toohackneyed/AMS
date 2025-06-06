@@ -1,63 +1,43 @@
-import face_recognition
-import numpy as np
 import json
 import logging
 from io import BytesIO
-import cv2
 from celery import shared_task
-from .models import Students
 from PIL import Image
+from .models import Students, Staffs
+from utils.face_utils import extract_face_embedding
 
+# Tasks for processing face encodings for students and staff members
 logger = logging.getLogger(__name__)
 
 @shared_task
-def process_face_encoding(student_id, image_data):
-    logger.info(f"🔄 Processing face encoding for Student ID: {student_id}")
-
+def process_face_encoding(user_id, image_data, user_type="student"):
+    logger.info(f"🔄 Processing face encoding for {user_type.title()} ID: {user_id}")
     try:
-        student = Students.objects.get(id=student_id)
-
-        # Load image into PIL for processing
+        if user_type == "student":
+            user = Students.objects.get(id=user_id)
+        elif user_type == "staff":
+            user = Staffs.objects.get(id=user_id)
+        else:
+            raise ValueError(f"Unknown user_type: {user_type}")
         image = Image.open(BytesIO(image_data)).convert("RGB")
-
-        # Optional: crop to square (centered)
         width, height = image.size
         side = min(width, height)
         left = (width - side) // 2
         top = (height - side) // 2
         image = image.crop((left, top, left + side, top + side))
-
-        # Resize for consistency (not too small)
         image = image.resize((400, 400))
-
-        # Convert to NumPy array for face_recognition
-        buffered = BytesIO()
-        image.save(buffered, format="JPEG")
-        img_array = np.frombuffer(buffered.getvalue(), np.uint8)
-        bgr_image = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-        rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
-
-        # Detect face and encode
-        face_locations = face_recognition.face_locations(rgb_image, model="hog")
-        face_encodings = face_recognition.face_encodings(rgb_image, face_locations)
-
-        if face_encodings:
-            encoded_face = face_encodings[0]
-            student.face_encoding = json.dumps(
-                [round(float(x), 15) for x in encoded_face],
-                ensure_ascii=False
-            )
-            student.save()
-            logger.info(f"✅ Face encoding saved for Student ID: {student_id}")
-            return f"✅ Face encoding successful for Student ID {student_id}"
+        encoding = extract_face_embedding(image)
+        if encoding:
+            user.face_encoding = json.dumps(encoding, ensure_ascii=False)
+            user.save()
+            logger.info(f"✅ Face encoding saved for {user_type.title()} ID: {user_id}")
+            return f"✅ Face encoding successful for {user_type.title()} ID {user_id}"
         else:
-            logger.warning(f"⚠️ No face detected for Student ID: {student_id}")
-            return f"⚠️ No face detected for Student ID {student_id}"
-
-    except Students.DoesNotExist:
-        logger.error(f"❌ Student with ID {student_id} not found!")
-        return f"❌ Student with ID {student_id} not found!"
-
+            logger.warning(f"⚠️ No face detected for {user_type.title()} ID: {user_id}")
+            return f"⚠️ No face detected for {user_type.title()} ID {user_id}"
+    except (Students.DoesNotExist, Staffs.DoesNotExist):
+        logger.error(f"❌ {user_type.title()} with ID {user_id} not found!")
+        return f"❌ {user_type.title()} with ID {user_id} not found!"
     except Exception as e:
-        logger.error(f"🚨 Error in face encoding for Student ID {student_id}: {e}")
+        logger.error(f"🚨 Error in face encoding for {user_type.title()} ID {user_id}: {e}")
         return f"🚨 Error: {str(e)}"

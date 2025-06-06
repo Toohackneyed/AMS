@@ -17,13 +17,11 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path
 from django.contrib.auth import views as auth_views
-
 from ams_app import views, adminviews, staffviews, studentviews
-# from ams_app import api_views  # Import api_views for API endpoints
-# from ams_app.views import AutoMarkAttendanceView, GetOngoingSubjectView
 from AMS import settings
 
-
+# This is the main URL configuration for the AMS (Attendance Management System) project.
+# It includes paths for the admin interface, user authentication, and various app-specific views.
 urlpatterns = [
     path('dashboard', views.dashboard),
     path('admin/', admin.site.urls),
@@ -38,8 +36,9 @@ urlpatterns = [
     path('api/auto_mark_attendance_live/', views.auto_mark_attendance_live, name='auto_mark_attendance_live'),
     path("api/get_ongoing_subject/", views.get_ongoing_subject, name="get_ongoing_subject"),
     path('rfid-endpoint/', views.rfid_endpoint, name='rfid-endpoint'),
-    path('face-recognition/', views.recognize_face, name='face-recognition'),
+    # path('face-recognition/', views.recognize_face, name='face-recognition'),
 
+# Admin URL Path =====================================================================================================
     path('admin_home/', adminviews.admin_home, name="admin_home"),
     path("about/", adminviews.about_us, name="about_page"),
     path('add_staff/', adminviews.add_staff, name="add_staff"),
@@ -88,17 +87,13 @@ urlpatterns = [
     path("get_ongoing_subject/", adminviews.get_ongoing_subject, name="get_ongoing_subject"),
     path('get_latest_rfids/', adminviews.get_latest_rfids, name='get_latest_rfids'),
 
-
-
-    path('reset-password/', auth_views.PasswordResetView.as_view(), name='reset_password'),
-    path('check_face_encoding_status/', adminviews.check_face_encoding_status, name='check_face_encoding_status'),
-        # Password Reset URLs
+# Password Reset URLs =====================================================================================================
     path('reset-password/', auth_views.PasswordResetView.as_view(), name='password_reset'),
     path('reset-password/done/', auth_views.PasswordResetDoneView.as_view(), name='password_reset_done'),
     path('reset-password-confirm/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     path('reset-password-complete/', auth_views.PasswordResetCompleteView.as_view(), name='password_reset_complete'),
 
-                  #     Staff URL Path
+# Staff URL Path =====================================================================================================
     path('staff_home/', staffviews.staff_home, name="staff_home"),
     path("staff/view-attendance/", staffviews.staff_view_attendance, name="staff_view_attendance"),
     path("staff/get-attendance/", staffviews.staff_get_attendance, name="staff_get_attendance"),
@@ -108,7 +103,8 @@ urlpatterns = [
     path('staff_profile', staffviews.staff_profile, name="staff_profile"),
     path('staff_profile_save', staffviews.staff_profile_save, name="staff_profile_save"),
     path('students-by-subject/', staffviews.students_by_subject, name='students_by_subject'),
-                 #      Students URL Path
+
+# Students URL Path =====================================================================================================
     path('student_home/', studentviews.student_home, name="student_home"),
     path('student/view_attendance/', studentviews.student_view_attendance, name='student_view_attendance'),
     path('student/get_attendance/', studentviews.student_get_attendance, name='student_get_attendance'),
