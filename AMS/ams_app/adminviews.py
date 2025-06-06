@@ -36,7 +36,8 @@ import serial.tools.list_ports
 import re
 from datetime import datetime 
 from .tasks import process_face_encoding
-from ams_app.models import CustomUser, Staffs, Courses, Subjects,Sections, Students, SessionYearModel, SubjectSchedule, Attendance, AttendanceReport, Enrollment
+from ams_app.models import CustomUser, Staffs, Courses, Subjects,Sections, Students, SessionYearModel, SubjectSchedule, Attendance, AttendanceReport, Enrollment, StaffAttendanceReport, StaffAttendance
+from openpyxl import Workbook
 
 # Admin About Us Page ==================================================================================================================================
 def about_us(request):
@@ -675,76 +676,97 @@ def get_attendance(request):
             end_date = parse_date(data.get("end_date"))
             get_all_schedules = data.get("get_all_schedules", False)
             subject = Subjects.objects.get(id=subject_id)
+            staff = subject.staff
+            instructor_name = f"{staff.admin.first_name} {staff.admin.last_name}"
             if get_all_schedules:
-                schedule_ids = SubjectSchedule.objects.filter(subject_id=subject_id).values_list("id", flat=True)
+                schedules = SubjectSchedule.objects.filter(subject_id=subject_id)
             else:
-                schedule_ids = [schedule_id]
-            schedule_objs = SubjectSchedule.objects.filter(id__in=schedule_ids)
-            schedule_day_map = {
-                sched.id: sched.day_of_week for sched in schedule_objs
-            }
-            enrolled_students = Students.objects.filter(
+                schedules = SubjectSchedule.objects.filter(id=schedule_id)
+            students = Students.objects.filter(
                 enrollment__subject_id=subject_id,
                 session_year_id=session_year_id
             ).distinct()
-            response_data = []
+            student_data = []
+            instructor_data = []
             current_date = start_date
             while current_date <= end_date:
                 weekday_str = current_date.strftime("%A")
-                for sched in schedule_objs:
+                for sched in schedules:
                     if sched.day_of_week != weekday_str:
-                        continue 
-                    attendance = Attendance.objects.filter(
+                        continue
+                    schedule_str = f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})"
+                    staff_attendance = StaffAttendance.objects.filter(
                         subject_id=subject_id,
-                        session_year=session_year_id,
                         schedule_id=sched.id,
                         attendance_date=current_date
                     ).first()
-                    if attendance:
-                        attended_student_ids = set()
-                        for report in attendance.attendancereport_set.all():
-                            student = report.student
-                            student_name = f"{student.admin.first_name} {student.admin.last_name}"
-                            status = report.status
-                            attended_student_ids.add(student.id)
-                            response_data.append({
-                                "student_name": student_name,
+                    if staff_attendance:
+                        staff_report = StaffAttendanceReport.objects.filter(
+                            attendance=staff_attendance,
+                            staff=staff
+                        ).first()
+                        if staff_report:
+                            instructor_data.append({
+                                "instructor_name": instructor_name,
                                 "date": str(current_date),
-                                "schedule": f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})",
-                                "status": status,
-                                "subject_name": subject.subject_name,
-                                "instructor_name": f"{subject.staff.admin.first_name} {subject.staff.admin.last_name}"
+                                "schedule": schedule_str,
+                                "status": staff_report.status,
+                                "subject_name": subject.subject_name
                             })
-                        for student in enrolled_students:
-                            if student.id not in attended_student_ids:
-                                student_name = f"{student.admin.first_name} {student.admin.last_name}"
-                                response_data.append({
-                                    "student_name": student_name,
-                                    "date": str(current_date),
-                                    "schedule": f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})",
-                                    "status": "Absent",
-                                    "subject_name": subject.subject_name,
-                                    "instructor_name": f"{subject.staff.admin.first_name} {subject.staff.admin.last_name}"
-                                })
+                        else:
+                            instructor_data.append({
+                                "instructor_name": instructor_name,
+                                "date": str(current_date),
+                                "schedule": schedule_str,
+                                "status": "Absent",
+                                "subject_name": subject.subject_name
+                            })
                     else:
-                        for student in enrolled_students:
-                            student_name = f"{student.admin.first_name} {student.admin.last_name}"
-                            response_data.append({
+                        instructor_data.append({
+                            "instructor_name": instructor_name,
+                            "date": str(current_date),
+                            "schedule": schedule_str,
+                            "status": "Absent",
+                            "subject_name": subject.subject_name
+                        })
+                    attendance = Attendance.objects.filter(
+                        subject_id=subject_id,
+                        session_year_id=session_year_id,
+                        schedule_id=sched.id,
+                        attendance_date=current_date
+                    ).first()
+                    reported_ids = set()
+                    if attendance:
+                        reports = AttendanceReport.objects.filter(attendance=attendance)
+                        for report in reports:
+                            student_name = f"{report.student.admin.first_name} {report.student.admin.last_name}"
+                            student_data.append({
                                 "student_name": student_name,
                                 "date": str(current_date),
-                                "schedule": f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})",
+                                "schedule": schedule_str,
+                                "status": report.status,
+                                "subject_name": subject.subject_name
+                            })
+                            reported_ids.add(report.student.id)
+                    for student in students:
+                        if student.id not in reported_ids:
+                            student_name = f"{student.admin.first_name} {student.admin.last_name}"
+                            student_data.append({
+                                "student_name": student_name,
+                                "date": str(current_date),
+                                "schedule": schedule_str,
                                 "status": "Absent",
-                                "subject_name": subject.subject_name,
-                                "instructor_name": f"{subject.staff.admin.first_name} {subject.staff.admin.last_name}"
+                                "subject_name": subject.subject_name
                             })
                 current_date += timedelta(days=1)
-            return JsonResponse(response_data, safe=False)
+            return JsonResponse({
+                "instructor_data": instructor_data,
+                "student_data": student_data
+            })
         except Exception as e:
-            print(f"⚠️ Error: {str(e)}")
             return JsonResponse({"error": str(e)}, status=400)
 
 # Download Attendance as Excel ==================================================================================================================================
-@csrf_exempt
 def download_attendance(request):
     if request.method == "POST":
         try:
@@ -755,73 +777,82 @@ def download_attendance(request):
             start_date = parse_date(data.get("start_date"))
             end_date = parse_date(data.get("end_date"))
             get_all_schedules = data.get("get_all_schedules", False)
-            if get_all_schedules:
-                schedule_objs = SubjectSchedule.objects.filter(subject_id=subject_id)
-            else:
-                schedule_objs = SubjectSchedule.objects.filter(id=schedule_id)
-            if not schedule_objs.exists():
-                return JsonResponse({"error": "No schedules found."}, status=400)
-            subject = Subjects.objects.select_related('staff__admin').get(id=subject_id)
-            instructor_name = f"{subject.staff.admin.first_name} {subject.staff.admin.last_name}"
+            subject = Subjects.objects.get(id=subject_id)
+            staff = subject.staff
+            instructor_name = f"{staff.admin.first_name} {staff.admin.last_name}"
+            schedules = SubjectSchedule.objects.filter(subject=subject) if get_all_schedules else SubjectSchedule.objects.filter(id=schedule_id)
             students = Students.objects.filter(
                 enrollment__subject_id=subject_id,
                 session_year_id=session_year_id
             ).distinct()
-            data_list = []
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Attendance"
+            ws.append(["INSTRUCTOR ATTENDANCE"])
+            ws.append(["Instructor Name", "Date", "Schedule", "Status", "Subject"])
             current_date = start_date
             while current_date <= end_date:
                 weekday_str = current_date.strftime("%A")
-
-                for sched in schedule_objs:
+                for sched in schedules:
                     if sched.day_of_week != weekday_str:
                         continue
+                    schedule_str = f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})"
+                    staff_attendance = StaffAttendance.objects.filter(
+                        subject_id=subject_id,
+                        schedule_id=sched.id,
+                        attendance_date=current_date
+                    ).first()
+                    if staff_attendance:
+                        staff_report = StaffAttendanceReport.objects.filter(
+                            attendance=staff_attendance,
+                            staff=staff
+                        ).first()
+                        status = staff_report.status if staff_report else "Absent"
+                    else:
+                        status = "Absent"
+                    ws.append([instructor_name, str(current_date), schedule_str, status, subject.subject_name])
+                current_date += timedelta(days=1)
+            ws.append([])
+            ws.append(["STUDENT ATTENDANCE"])
+            ws.append(["Student Name", "Date", "Schedule", "Status", "Subject"])
+            for sched in schedules:
+                current_date = start_date
+                while current_date <= end_date:
+                    weekday_str = current_date.strftime("%A")
+                    if sched.day_of_week != weekday_str:
+                        current_date += timedelta(days=1)
+                        continue
+                    schedule_str = f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})"
                     attendance = Attendance.objects.filter(
                         subject_id=subject_id,
                         session_year=session_year_id,
                         schedule_id=sched.id,
                         attendance_date=current_date
                     ).first()
-                    attended_ids = set()
+                    reported_ids = set()
                     if attendance:
-                        for report in attendance.attendancereport_set.all():
-                            student = report.student
-                            student_name = f"{student.admin.first_name} {student.admin.last_name}"
-                            schedule_str = f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})"
-                            status = report.status
-                            data_list.append([
-                                student_name,
-                                str(current_date),
-                                schedule_str,
-                                status,
-                                subject.subject_name,
-                                instructor_name
-                            ])
-                            attended_ids.add(student.id)
-                    schedule_str = f"{sched.day_of_week} ({sched.start_time} - {sched.end_time})"
+                        reports = AttendanceReport.objects.filter(attendance=attendance)
+                        for report in reports:
+                            student_name = f"{report.student.admin.first_name} {report.student.admin.last_name}"
+                            ws.append([student_name, str(current_date), schedule_str, report.status, subject.subject_name])
+                            reported_ids.add(report.student.id)
                     for student in students:
-                        if student.id not in attended_ids:
+                        if student.id not in reported_ids:
                             student_name = f"{student.admin.first_name} {student.admin.last_name}"
-                            data_list.append([
-                                student_name,
-                                str(current_date),
-                                schedule_str,
-                                "Absent",
-                                subject.subject_name,
-                                instructor_name
-                            ])
-                current_date += timedelta(days=1)
-            if not data_list:
-                return JsonResponse({"error": "No attendance records found."}, status=404)
-            df = pd.DataFrame(data_list, columns=["Student Name", "Date", "Schedule", "Status", "Subject", "Instructor"])
+                            ws.append([student_name, str(current_date), schedule_str, "Absent", subject.subject_name])
+                    current_date += timedelta(days=1)
+                ws.append([])
             response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-            response['Content-Disposition'] = 'attachment; filename="attendance.xlsx"'
-            df.to_excel(response, index=False)
+            filename = f"Attendance_{subject.subject_name}_{start_date}_to_{end_date}.xlsx"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            wb.save(response)
             return response
         except Exception as e:
-            print(f"⚠️ Error: {str(e)}")
+            import traceback
+            print("Error in download_attendance:", traceback.format_exc())
             return JsonResponse({"error": str(e)}, status=400)
-
-# Admin Profile
+        
+# Admin Profile ==================================================================================================================================
 def admin_profile(request):
     user=CustomUser.objects.get(id=request.user.id)
     return render(request,"admin_template/admin_profile.html",{"user":user})

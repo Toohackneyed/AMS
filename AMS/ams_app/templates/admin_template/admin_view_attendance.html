@@ -14,17 +14,7 @@ View Attendance
                         <h3 class="card-title">View Attendance</h3>
                     </div>
                     <div class="card-body">
-
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="fw-bold">Attendance Type</label>
-                                <select class="form-select" id="attendance_type">
-                                    <option value="student">Student</option>
-                                    <option value="staff">Staff</option>
-                                </select>
-                            </div>
-                        </div>
-
+                        <!-- Filters -->
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label class="fw-bold">Subject</label>
@@ -73,12 +63,13 @@ View Attendance
                                 </select>
                             </div>
                         </div>
-
                     </div>
+
                     <div class="card-footer d-flex justify-content-between">
                         <button type="button" class="btn btn-primary" id="fetch_attendance"><i class="fas fa-search"></i> Fetch Attendance</button>
                         <button type="button" id="download_attendance" class="btn btn-success"><i class="fas fa-download"></i> Download Attendance</button>
                     </div>
+
                     <div id="attendance_data" class="p-3"></div>
                 </div>
             </div>
@@ -89,154 +80,190 @@ View Attendance
 
 {% block custom_js %}
 <script>
-    $(document).ready(function () {
-        function toggleLoading(show) {
-            if (show) {
-                $("#attendance_data").html('<div class="text-center"><div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div>');
-            } else {
-                $("#attendance_data").empty();
-            }
+$(document).ready(function () {
+    function toggleLoading(show) {
+        if (show) {
+            $("#attendance_data").html('<div class="text-center"><div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div></div>');
+        } else {
+            $("#attendance_data").empty();
+        }
+    }
+
+    $("#subject").on("change", function () {
+        const selectedSubject = $(this).val();
+        $("#schedule option").each(function () {
+            const subjectId = $(this).data("subject");
+            $(this).toggle(subjectId == selectedSubject);
+        });
+        $("#schedule").val($("#schedule option:visible:first").val());
+    }).trigger("change");
+
+    $("#fetch_attendance").click(function () {
+        const subject = $("#subject").val();
+        const session_year = $("#session_year").val();
+        const schedule = $("#schedule").val();
+        const start_date = $("#start_date").val();
+        const end_date = $("#end_date").val();
+        const get_all_schedules = $("#get_all_schedules").is(":checked");
+
+        if (!subject || !session_year || !start_date || !end_date) {
+            alert("Please select all required fields.");
+            return;
         }
 
-        // Auto-filter schedule options by selected subject
-        $("#subject").on("change", function () {
-            const selectedSubject = $(this).val();
-            $("#schedule option").each(function () {
-                const subjectId = $(this).data("subject");
-                if (subjectId == selectedSubject) {
-                    $(this).show();
-                } else {
-                    $(this).hide();
-                }
-            });
-            $("#schedule").val($("#schedule option:visible:first").val());
-        }).trigger("change");
+        toggleLoading(true);
 
-        // Fetch Attendance
-        $("#fetch_attendance").click(function () {
-            const subject = $("#subject").val();
-            const session_year = $("#session_year").val();
-            const schedule = $("#schedule").val();
-            const start_date = $("#start_date").val();
-            const end_date = $("#end_date").val();
-            const get_all_schedules = $("#get_all_schedules").is(":checked");
-            const attendance_type = $("#attendance_type").val();
-
-            if (!subject || !session_year || !start_date || !end_date) {
-                alert("Please select all required fields.");
-                return;
-            }
-
-            toggleLoading(true);
-
-            $.ajax({
-                url: "{% url 'get_attendance' %}",
-                type: 'POST',
-                contentType: 'application/json',
-                headers: { "X-CSRFToken": "{{ csrf_token }}" },
-                data: JSON.stringify({
-                    subject,
-                    session_year,
-                    schedule,
-                    start_date,
-                    end_date,
-                    get_all_schedules,
-                    attendance_type
-                }),
-                success: function (response) {
-                    toggleLoading(false);
-
-                    if (!response || response.length === 0) {
-                        $("#attendance_data").html(`<p class='text-danger'>No attendance records found.</p>`);
-                        return;
-                    }
-
-                    const label = attendance_type === "staff" ? "Staff Name" : "Student Name";
-
-                    let table_data = `
-                        <table class='table table-bordered'>
-                            <thead>
-                                <tr>
-                                    <th>${label}</th>
-                                    <th>Date</th>
-                                    <th>Schedule</th>
-                                    <th>Status</th>
-                                    <th>Subject</th>
-                                    <th>Instructor</th>
-                                </tr>
-                            </thead>
-                            <tbody>`;
-
-                    response.forEach(record => {
-                        table_data += `
-                            <tr>
-                                <td>${record.student_name}</td>
-                                <td>${record.date}</td>
-                                <td>${record.schedule}</td>
-                                <td>${record.status}</td>
-                                <td>${record.subject_name}</td>
-                                <td>${record.instructor_name}</td>
-                            </tr>`;
-                    });
-
-                    table_data += "</tbody></table>";
-                    $("#attendance_data").html(table_data);
-                },
-                error: function (xhr) {
-                    toggleLoading(false);
-                    alert("Error fetching attendance.");
-                    console.error("❌", xhr.responseText);
-                }
-            });
-        });
-
-        // Download Attendance
-        $("#download_attendance").click(function () {
-            const subject = $("#subject").val();
-            const session_year = $("#session_year").val();
-            const schedule = $("#schedule").val();
-            const start_date = $("#start_date").val();
-            const end_date = $("#end_date").val();
-            const get_all_schedules = $("#get_all_schedules").is(":checked");
-            const attendance_type = $("#attendance_type").val();
-
-            const requestData = JSON.stringify({
+        $.ajax({
+            url: "{% url 'get_attendance' %}",
+            type: 'POST',
+            contentType: 'application/json',
+            headers: { "X-CSRFToken": "{{ csrf_token }}" },
+            data: JSON.stringify({
                 subject,
                 session_year,
                 schedule,
                 start_date,
                 end_date,
-                get_all_schedules,
-                attendance_type
-            });
+                get_all_schedules
+            }),
+            success: function (response) {
+                toggleLoading(false);
 
-            fetch("{% url 'download_attendance' %}", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": "{{ csrf_token }}"
-                },
-                body: requestData
-            })
-            .then(response => {
-                if (response.ok) return response.blob();
-                throw new Error("Download failed.");
-            })
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "attendance.xlsx";
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                window.URL.revokeObjectURL(url);
-            })
-            .catch(error => {
-                console.error("Download error:", error);
-                alert("Error downloading attendance.");
-            });
+                if (!response || response.student_data.length === 0 && response.instructor_data.length === 0) {
+                    $("#attendance_data").html(`<p class='text-danger'>No attendance records found.</p>`);
+                    return;
+                }
+
+                let html = "";
+
+                // Instructor Section
+                if (response.instructor_data.length > 0) {
+                    html += `
+                        <h5>Instructor Attendance</h5>
+                        <table class='table table-bordered'>
+                            <thead>
+                                <tr>
+                                    <th>Instructor</th>
+                                    <th>Date</th>
+                                    <th>Schedule</th>
+                                    <th>Status</th>
+                                    <th>Subject</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                    response.instructor_data.forEach(record => {
+                        html += `
+                            <tr>
+                                <td>${record.instructor_name}</td>
+                                <td>${record.date}</td>
+                                <td>${record.schedule}</td>
+                                <td>${record.status}</td>
+                                <td>${record.subject_name}</td>
+                            </tr>`;
+                    });
+                    html += "</tbody></table>";
+                }
+
+                // Student Section Grouped by Schedule
+                if (response.student_data.length > 0) {
+                    html += `<h5 class="mt-4">Student Attendance</h5>`;
+
+                    const groupedData = {};
+                    response.student_data.forEach(record => {
+                        if (!groupedData[record.schedule]) {
+                            groupedData[record.schedule] = [];
+                        }
+                        groupedData[record.schedule].push(record);
+                    });
+
+                    let colorIndex = 0;
+                    const bgColors = ['bg-light', 'bg-warning', 'bg-info', 'bg-success', 'bg-secondary'];
+
+                    for (const schedule in groupedData) {
+                        const records = groupedData[schedule];
+                        const bgClass = bgColors[colorIndex % bgColors.length];
+                        colorIndex++;
+
+                        html += `
+                            <div class="card mb-3 shadow-sm">
+                                <div class="card-header ${bgClass} fw-bold" data-bs-toggle="collapse" data-bs-target="#sched_${colorIndex}" style="cursor:pointer;">
+                                    ${schedule} - ${records[0].subject_name}
+                                </div>
+                                <div class="collapse show" id="sched_${colorIndex}">
+                                    <div class="card-body p-0">
+                                        <table class="table table-bordered mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Student Name</th>
+                                                    <th>Date</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>`;
+
+                        records.forEach(rec => {
+                            html += `
+                                <tr>
+                                    <td>${rec.student_name}</td>
+                                    <td>${rec.date}</td>
+                                    <td>${rec.status}</td>
+                                </tr>`;
+                        });
+
+                        html += `</tbody></table></div></div></div>`;
+                    }
+                }
+
+                $("#attendance_data").html(html);
+            },
+            error: function (xhr) {
+                toggleLoading(false);
+                alert("Error fetching attendance.");
+                console.error(xhr.responseText);
+            }
         });
     });
+
+    $("#download_attendance").click(function () {
+        const subject = $("#subject").val();
+        const session_year = $("#session_year").val();
+        const schedule = $("#schedule").val();
+        const start_date = $("#start_date").val();
+        const end_date = $("#end_date").val();
+        const get_all_schedules = $("#get_all_schedules").is(":checked");
+
+        if (!subject || !session_year || !start_date || !end_date) {
+            alert("Please select all required fields.");
+            return;
+        }
+
+        fetch("{% url 'download_attendance' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                subject,
+                session_year,
+                schedule,
+                start_date,
+                end_date,
+                get_all_schedules
+            })
+        }).then(res => {
+            if (!res.ok) throw new Error("Download failed.");
+            return res.blob();
+        }).then(blob => {
+            const link = document.createElement("a");
+            link.href = window.URL.createObjectURL(blob);
+            link.download = "attendance.xlsx";
+            link.click();
+        }).catch(err => {
+            console.error(err);
+            alert("Error downloading attendance.");
+        });
+    });
+});
 </script>
 {% endblock custom_js %}
