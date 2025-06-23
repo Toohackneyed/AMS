@@ -12,14 +12,11 @@ Manage Staff
         <div class="card shadow-lg border-0 rounded-4">
           <div class="card-header bg-primary text-white d-flex flex-wrap justify-content-between align-items-center rounded-top-4 px-4 py-3">
             <a href="{% url 'add_staff' %}" class="btn btn-success btn-sm rounded-pill px-4">+ Add Staff</a>
-
             <div class="input-group input-group-sm w-auto">
               <input type="text" id="table_search" class="form-control rounded-start-pill" placeholder="Search staff..." onkeyup="searchTable()">
               <button type="button" class="btn btn-light rounded-end-pill"><i class="fas fa-search"></i></button>
             </div>
           </div>
-
-          <!-- Table Body -->
           <div class="card-body p-0">
             <div class="table-responsive">
               <table class="table table-hover table-striped text-nowrap mb-0">
@@ -65,8 +62,6 @@ Manage Staff
                   {% endfor %}
                 </tbody>
               </table>
-
-              <!-- Delete Modal -->
               <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                   <div class="modal-content">
@@ -84,7 +79,6 @@ Manage Staff
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
         </div>
@@ -93,7 +87,6 @@ Manage Staff
   </div>
 </section>
 
-<!-- JS Functions -->
 <script>
   function openDeleteModal(staffId, firstName, lastName) {
     document.getElementById('staffName').textContent = `${firstName} ${lastName}`;
@@ -119,37 +112,30 @@ Manage Staff
     text-align: center;
     padding: 0.75rem;
   }
-
   .table tbody tr:hover {
     background-color: #f1f1f1;
     transition: background-color 0.2s ease;
   }
-
   .card {
     border-radius: 16px;
     overflow: hidden;
   }
-
   .sticky-top {
     position: sticky;
     top: 0;
     z-index: 10;
   }
-
   .input-group input {
     border-radius: 2rem 0 0 2rem;
   }
-
   .input-group button {
     border-radius: 0 2rem 2rem 0;
   }
-
   @media (max-width: 768px) {
     .card-header {
       flex-direction: column;
       gap: 0.75rem;
     }
-
     .input-group {
       width: 100% !important;
     }

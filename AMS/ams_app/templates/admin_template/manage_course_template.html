@@ -20,7 +20,6 @@ Manage Data
                                 <button class="btn btn-success btn-sm rounded-pill px-3" id="toggleAddSession">+ Session</button>
                             {% endif %}
                         </div>
-
                         <div class="input-group input-group-sm w-25">
                             <input type="text" name="table_search" id="table_search" class="form-control rounded" placeholder="Search..." onkeyup="searchTable()">
                             <div class="input-group-append">
@@ -30,7 +29,6 @@ Manage Data
                             </div>
                         </div>
                     </div>
-
                     {% if request.path == '/manage_session/' %}
                     <div class="card-body p-0" id="addSessionForm" style="display: none;">
                         <div class="p-3">
@@ -64,7 +62,6 @@ Manage Data
                         </div>
                     </div>
                     {% endif %}
-
                     <div class="card-body table-responsive p-0">
                         <table class="table table-hover text-center">
                             <thead class="bg-dark text-white">
@@ -142,7 +139,6 @@ function searchTable() {
     });
 }
 
-// For toggleable form in Session Year
 if (document.getElementById('toggleAddSession')) {
     document.getElementById('toggleAddSession').addEventListener('click', function() {
         const form = document.getElementById('addSessionForm');

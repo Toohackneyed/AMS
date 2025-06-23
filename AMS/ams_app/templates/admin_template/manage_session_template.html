@@ -21,8 +21,6 @@ Manage Session Year
                             </button>
                         </div>
                     </div>
-
-                    <!-- Add Session Form -->
                     <div class="card-body" id="addSessionForm" style="display: none;">
                         <form method="post" action="/add_session_save" onsubmit="return validateDates();">
                             {% csrf_token %}
@@ -41,8 +39,6 @@ Manage Session Year
                             </div>
                         </form>
                     </div>
-
-                    <!-- Table -->
                     <div class="card-body table-responsive p-0">
                         <table class="table table-hover text-center" id="sessionTable">
                             <thead class="bg-dark text-white">
@@ -69,8 +65,6 @@ Manage Session Year
                                 {% endfor %}
                             </tbody>
                         </table>
-
-                        <!-- Pagination -->
                         <div class="text-center my-3">
                             <button class="btn btn-outline-primary btn-sm" onclick="paginateTable(-1)">Previous</button>
                             <span id="pageNumber">Page 1</span>
@@ -81,8 +75,6 @@ Manage Session Year
             </div>
         </div>
     </div>
-
-    <!-- Toast Notification -->
     <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999">
         <div id="toast" class="toast align-items-center text-bg-success border-0" role="alert" style="display: none;">
             <div class="d-flex">
@@ -91,8 +83,6 @@ Manage Session Year
             </div>
         </div>
     </div>
-
-    <!-- Delete Confirmation Modal -->
     <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -112,7 +102,6 @@ Manage Session Year
     </div>
 </section>
 
-<!-- JavaScript -->
 <script>
     const rowsPerPage = 5;
     let currentPage = 1;
@@ -123,7 +112,7 @@ Manage Session Year
             form.style.display = form.style.display === 'block' ? 'none' : 'block';
         });
 
-        paginateTable(0); // Initialize pagination
+        paginateTable(0);
     });
 
     function searchTable() {
@@ -193,19 +182,15 @@ Manage Session Year
     th {
         cursor: pointer;
     }
-
     .btn-sm {
         transition: 0.2s ease-in-out;
     }
-
     .btn-sm:hover {
         transform: scale(1.05);
     }
-
     .toast {
         min-width: 200px;
     }
-
     .modal-header.bg-danger {
         background-color: #dc3545 !important;
     }

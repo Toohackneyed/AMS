@@ -19,7 +19,6 @@ Manage Subjects
                             <button class="btn btn-light"><i class="fas fa-search"></i></button>
                         </div>
                     </div>
-
                     <div class="card-body table-responsive p-0">
                         <table class="table table-hover text-nowrap" id="subjectTable">
                             <thead class="bg-dark text-white">
@@ -65,7 +64,6 @@ Manage Subjects
                                 {% endfor %}
                             </tbody>
                         </table>
-                        <!-- Pagination -->
                         <div class="d-flex justify-content-center my-3">
                             <button class="btn btn-outline-primary btn-sm me-2" onclick="paginate(-1)">Previous</button>
                             <span class="align-self-center" id="pageNumber">Page 1</span>
@@ -76,8 +74,6 @@ Manage Subjects
             </div>
         </div>
     </div>
-
-    <!-- Delete Confirmation Modal -->
     <div class="modal fade" id="deleteModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -97,13 +93,12 @@ Manage Subjects
     </div>
 </section>
 
-<!-- Scripts -->
 <script>
     let currentPage = 1;
     const rowsPerPage = 5;
 
     document.addEventListener("DOMContentLoaded", () => {
-        paginate(0);  // Initial call
+        paginate(0);
     });
 
     function filterTable() {

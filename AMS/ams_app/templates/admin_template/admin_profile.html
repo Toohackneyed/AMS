@@ -12,20 +12,16 @@
                             <i class="fas fa-edit"></i> Edit
                         </a>
                     </div>
-                    
                     <form role="form" action="{% url 'admin_profile_save' %}" method="post" class="p-4">
                         {% csrf_token %}
-
                         <div class="form-group mb-3">
                             <label>Username</label>
                             <input type="text" class="form-control editable" name="username" value="{{ user.username }}" disabled>
                         </div>
-
                         <div class="form-group mb-3">
                             <label>Email</label>
                             <input type="email" class="form-control editable" name="email" value="{{ user.email }}" disabled>
                         </div>
-
                         <div class="form-group mb-3">
                             <label>Current Password</label>
                             <div class="input-group">
@@ -35,7 +31,6 @@
                                 </button>
                             </div>
                         </div>
-
                         <div class="form-group mb-4">
                             <label>New Password</label>
                             <div class="input-group">
@@ -45,7 +40,6 @@
                                 </button>
                             </div>
                         </div>
-
                         <div class="card-footer bg-light text-center border-0">
                             <button type="submit" class="btn btn-success w-100" id="saveBtn" disabled>Save Profile</button>
                         </div>

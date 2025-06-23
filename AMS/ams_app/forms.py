@@ -7,6 +7,7 @@ class ChoiceNoValidation(ChoiceField):
     def validate(self, value):
         pass
 
+# Custom DateInput widget to render date fields as HTML5 date inputs
 class DateInput(forms.DateInput):
     input_type = "date"
 

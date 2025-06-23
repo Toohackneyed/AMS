@@ -1,7 +1,6 @@
 
 from datetime import date
 import os
-import pandas as pd
 import numpy as np
 from django.http import JsonResponse
 from .models import Students, Attendance, AttendanceReport

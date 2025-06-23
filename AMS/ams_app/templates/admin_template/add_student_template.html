@@ -16,8 +16,6 @@
                         {% csrf_token %}
                         <div class="card-body">
                             {{ form.as_p }}
-
-                            <!-- Multi-select dropdown using Select2 -->
                             <div class="form-group">
                                 <label class="font-weight-bold">Select Courses</label>
                                 <select id="course-select" name="courses" multiple="multiple" class="form-control">
@@ -26,24 +24,17 @@
                                     {% endfor %}
                                 </select>
                             </div>
-
-
-                            <!-- Subject Selection (Dynamic) -->
                             <div class="form-group">
                                 <label class="font-weight-bold">Select Subjects</label>
                                 <select id="subject-select" name="subjects" multiple class="form-control">
-                                    <!-- dynamically populated -->
                                 </select>
                             </div>
-
-                            <!-- Flash Messages -->
                             {% if messages %}
                                 {% for message in messages %}
                                     <div class="alert alert-{{ message.tags }} mt-2">{{ message }}</div>
                                 {% endfor %}
                             {% endif %}
                         </div>
-
                         <div class="card-footer">
                             <button type="submit" class="btn btn-primary btn-block">Enroll Student</button>
                         </div>
@@ -56,7 +47,6 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    // Initialize Select2
     $('#course-select').select2({
         placeholder: "Search and select courses",
         width: '100%'
@@ -70,7 +60,7 @@ document.addEventListener("DOMContentLoaded", function () {
     $('#course-select').on('change', function () {
         const selectedCourses = $(this).val();
         const subjectSelect = $('#subject-select');
-        subjectSelect.empty(); // Clear previous options
+        subjectSelect.empty();
 
         if (selectedCourses && selectedCourses.length > 0) {
             fetch(`/get_subjects_by_course/?courses=${selectedCourses.join(",")}`)
@@ -99,6 +89,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 });
 </script>
+
 <style>
     .select2-container--default .select2-selection--multiple .select2-selection__choice {
         background-color: #007bff;

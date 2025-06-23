@@ -13,35 +13,26 @@ Edit Staff | {{ staff.admin.username }}
                     <div class="card-header bg-primary text-white">
                         <h3 class="card-title">Edit Staff - {{ staff.admin.username }}</h3>
                     </div>
-
-                    <!-- Form -->
                     <form role="form" action="/edit_staff_save" method="post" enctype="multipart/form-data">
                         {% csrf_token %}
                         <div class="card-body">
-
                             <input type="hidden" name="staff_id" value="{{ staff.admin.id }}">
-
                             <div class="form-group">
                                 <label for="email">Email Address</label>
                                 <input type="email" class="form-control" id="email" name="email" value="{{ staff.admin.email }}" required>
                             </div>
-
                             <div class="form-group">
                                 <label for="first_name">First Name</label>
                                 <input type="text" class="form-control" id="first_name" name="first_name" value="{{ staff.admin.first_name }}" required>
                             </div>
-
                             <div class="form-group">
                                 <label for="last_name">Last Name</label>
                                 <input type="text" class="form-control" id="last_name" name="last_name" value="{{ staff.admin.last_name }}" required>
                             </div>
-
                             <div class="form-group">
                                 <label for="username">Username</label>
                                 <input type="text" class="form-control" id="username" name="username" value="{{ staff.admin.username }}" required>
                             </div>
-
-                            <!-- New Password -->
                             <div class="form-group">
                                 <label for="password">New Password</label>
                                 <div class="input-group">
@@ -51,8 +42,6 @@ Edit Staff | {{ staff.admin.username }}
                                     </button>
                                 </div>
                             </div>
-
-                            <!-- Profile Picture -->
                             <div class="form-group">
                                 <label for="profile_pic">Profile Picture</label>
                                 {% if staff.profile_pic %}
@@ -62,8 +51,6 @@ Edit Staff | {{ staff.admin.username }}
                                 {% endif %}
                                 <input type="file" class="form-control-file" id="profile_pic" name="profile_pic">
                             </div>
-
-                            <!-- Face Encoding Status -->
                             <div class="form-group">
                                 <label>Face Encoding</label><br>
                                 {% if staff.face_encoding and staff.face_encoding != '[]' %}
@@ -72,8 +59,6 @@ Edit Staff | {{ staff.admin.username }}
                                     <span class="badge bg-secondary">No Encoding</span>
                                 {% endif %}
                             </div>
-
-                            <!-- Alert Messages -->
                             {% if messages %}
                                 {% for message in messages %}
                                     <div class="alert alert-{{ message.tags }} d-flex align-items-center">
@@ -87,22 +72,18 @@ Edit Staff | {{ staff.admin.username }}
                                 {% endfor %}
                             {% endif %}
                         </div>
-
-                        <!-- Submit -->
                         <div class="card-footer text-center">
                             <button type="submit" class="btn btn-primary btn-lg">
                                 <i class="fas fa-save"></i> Save Changes
                             </button>
                         </div>
                     </form>
-
                 </div>
             </div>
         </div>
     </div>
 </section>
 
-<!-- Toggle Password JS -->
 <script>
     document.getElementById("togglePassword").addEventListener("click", function () {
         const passwordInput = document.getElementById("password");

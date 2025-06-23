@@ -1,15 +1,11 @@
 {% load static %}
 <aside class="main-sidebar sidebar-dark-primary elevation-4" style="background: linear-gradient(135deg, #0a0f2c, #1b2a49); box-shadow: 4px 4px 10px rgba(0, 212, 255, 0.2);">
-    <!-- Brand Logo -->
     <a href="{% url 'about_page' %}" class="brand-link">
         <img src="{% static 'dist/img/Logo.png' %}" alt="IdentiTech Logo" class="brand-image elevation-3" style="opacity: .9">
         <span class="brand-text font-weight-light" style="color: #00d4ff; text-shadow: 0 0 10px #00d4ff;">IdentiTech</span>
     </a>
 
-
-    <!-- Sidebar -->
     <div class="sidebar">
-        <!-- Sidebar user panel (optional) -->
         <div class="user-panel mt-3 pb-3 mb-3 d-flex">
             <div class="image">
                 <img src="https://img.freepik.com/premium-vector/user-icon-icon_1076610-59410.jpg?w=360" class="img-circle elevation-2" alt="User Image">
@@ -18,23 +14,8 @@
                 <a href="{% url 'admin_profile' %}" class="d-block" style="color: #ffffff;"><strong>{{ user.username }}</strong></a>
             </div>
         </div>
-
-        <!-- SidebarSearch Form -->
-        <!-- <div class="form-inline">
-            <div class="input-group" data-widget="sidebar-search">
-                <input class="form-control form-control-sidebar" type="search" placeholder="Search" aria-label="Search" style="border-radius: 8px; border: 1px solid #00d4ff; background: rgba(255, 255, 255, 0.1); color: white;">
-                <div class="input-group-append">
-                    <button class="btn btn-sidebar" style="border-radius: 8px; border: 1px solid #00d4ff; background: rgba(255, 255, 255, 0.1); color: white;">
-                        <i class="fas fa-search fa-fw" style="color: #00d4ff;"></i>
-                    </button>
-                </div>
-            </div>
-        </div> -->
-
-        <!-- Sidebar Menu -->
         <nav class="mt-2">
             <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-
                 <li class="nav-item">
                     {% url 'admin_home' as admin_home %}
                     <a href="{% url 'admin_home' %}" class="nav-link {% if request.path == admin_home %} active {% endif %}">
@@ -42,7 +23,6 @@
                         <p>Home</p>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% url 'manage_staff' as manage_staff %}
                     <a href="{% url 'manage_staff' %}" class="nav-link {% if 'manage_staff' in request.path or 'add_staff' in request.path or 'edit_staff' in request.path %} active {% endif %}">
@@ -50,7 +30,6 @@
                         <p>Manage Staff</p>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% url 'manage_student' as manage_student %}
                     <a href="{% url 'manage_student' %}" class="nav-link {% if 'manage_student' in request.path or 'add_student' in request.path or 'edit_student' in request.path %} active {% endif %}">
@@ -58,7 +37,6 @@
                         <p>Manage Student</p>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% url 'manage_course' as manage_course %}
                     <a href="{% url 'manage_course' %}" class="nav-link {% if 'manage_course' in request.path or 'add_course' in request.path or 'edit_course' in request.path %} active {% endif %}">
@@ -66,7 +44,6 @@
                         <p>Manage Course</p>
                     </a>
                 </li>                
-
                 <li class="nav-item">
                     {% url 'manage_section' as manage_section %}
                     <a href="{% url 'manage_section' %}" class="nav-link {% if 'manage_section' in request.path or 'add_section' in request.path or 'edit_section' in request.path %} active {% endif %}">
@@ -74,7 +51,6 @@
                         <p>Manage Section</p>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% url 'manage_subject' as manage_subject %}
                     <a href="{% url 'manage_subject' %}" class="nav-link {% if 'manage_subject' in request.path or 'add_subject' in request.path or 'edit_subject' in request.path %} active {% endif %}">
@@ -82,7 +58,6 @@
                         <p>Manage Subject</p>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% url 'manage_session' as manage_session %}
                     <a href="{% url 'manage_session' %}" class="nav-link {% if 'manage_session' in request.path or 'add_session' in request.path or 'edit_session' in request.path %} active {% endif %}">
@@ -90,7 +65,6 @@
                         <p>Manage School Year</p>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% url 'admin_view_attendance' as admin_view_attendance %}
                     <a href="{% url 'admin_view_attendance' %}" class="nav-link {% if request.path == admin_view_attendance %} active {% endif %}">
@@ -98,7 +72,6 @@
                         <p>View Attendance</p>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% url 'face_recognition_attendance' as face_recognition_attendance %}
                     <a href="{% url 'face_recognition_attendance' %}" class="nav-link {% if request.path == face_recognition_attendance %} active {% endif %}">
@@ -106,12 +79,9 @@
                         <p>Face Recognition</p>
                     </a>
                 </li>
-
             </ul>
         </nav>
-        <!-- /.sidebar-menu -->
     </div>
-    <!-- /.sidebar -->
 </aside>
 
 <style>
@@ -127,8 +97,6 @@
     background: linear-gradient(45deg, #002fff, #00d4ff);
     box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
   }
-
-  /* 🔧 Remove underline globally on all anchor buttons/links */
   a,
   a:visited,
   a:hover,

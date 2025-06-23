@@ -1,6 +1,7 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+  
 <head>
   <meta charset="UTF-8">
   <title>Attendance Monitor</title>
@@ -9,6 +10,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="{% static 'dist/img/Logo.ico' %}">
+
   <style>
     :root {
       --bg: #f0f4f8;
@@ -117,13 +119,11 @@
       border-bottom: 1px solid #ddd;
     }
   </style>
+
 </head>
+
 <body>
-
-<!-- 🌙 Toggle Button -->
 <button class="theme-toggle" onclick="toggleTheme()">🌙 Toggle Mode</button>
-
-<!-- 🔲 Main Container -->
 <div class="container-fluid container-wrapper">
   <div class="row text-center mb-4">
     <div class="col-12">
@@ -131,9 +131,7 @@
       <div id="clock" class="clock"></div>
     </div>
   </div>
-
   <div class="row">
-    <!-- 📷 Left: Video Stream -->
     <div class="col-lg-6 col-md-12 mb-4">
       <div class="video-container">
         <video id="video" autoplay playsinline></video>
@@ -142,8 +140,6 @@
       <canvas id="canvas" hidden></canvas>
       <p id="result" class="text-center text-info mt-3">⏳ Waiting for attendance...</p>
     </div>
-
-    <!-- 📋 Right: Logs -->
     <div class="col-lg-6 col-md-12">
       <div id="staffdiv" class="log-box">
         <h5>👨‍🏫 Instructor Attendance </h5>
@@ -151,14 +147,12 @@
           <li class="list-group-item no-staff">No attendance recorded yet.</li>
         </ul>
       </div>
-
       <div id="attendancediv" class="log-box">
         <h5>📝 Student Attendance </h5>
         <ul id="attendanceLog" class="list-group">
           <li class="list-group-item no-record">No attendance recorded yet.</li>
         </ul>
       </div>
-
       <div id="rfiddiv" class="log-box">
         <h5>📟 RFID</h5>
         <ul id="rfidLog" class="list-group">
@@ -197,8 +191,8 @@
       result.innerText = "⚠️ Please allow camera access.";
     }
   }
-  startCamera();
 
+  startCamera();
   fullscreenBtn.addEventListener("click", () => {
     if (!isFullscreen) {
       video.requestFullscreen();
@@ -218,26 +212,23 @@
     const now = new Date();
     document.getElementById('clock').textContent = now.toLocaleTimeString();
   }
+
   setInterval(updateClock, 1000);
   updateClock();
-
   function formatTime(timeStr) {
     const date = new Date("1970-01-01T" + timeStr);
     return isNaN(date) ? new Date().toLocaleTimeString() : date.toLocaleTimeString();
   }
-
+  
   function addToAttendanceLog(name, status, timeStr) {
     const noRecordMessage = attendanceLog.querySelector('.no-record');
     if (noRecordMessage) noRecordMessage.remove();
-
     if ([...attendanceLog.children].some(item => item.innerText.includes(name))) return;
-
     const entry = `${name} - ${status} at ${formatTime(timeStr)}`;
     const newItem = document.createElement("li");
     newItem.classList.add("list-group-item");
     newItem.innerText = entry;
     attendanceLog.prepend(newItem);
-
     if (attendanceLog.childElementCount > 3) {
       attendanceLog.removeChild(attendanceLog.lastChild);
     }

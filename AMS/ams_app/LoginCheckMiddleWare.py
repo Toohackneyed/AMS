@@ -34,7 +34,6 @@ class LoginCheckMiddleWare(MiddlewareMixin):
                     return HttpResponseRedirect(reverse("student_home"))
             else:
                 return HttpResponseRedirect(reverse("show_login"))
-
         else:
             if request.path == reverse("show_login") or request.path == reverse("LoggedIn") or modulename == "django.contrib.auth.views" or modulename =="django.contrib.admin.sites" or modulename=="ams_app.views":
                 pass

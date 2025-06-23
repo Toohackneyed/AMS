@@ -11,6 +11,42 @@ from datetime import timedelta
 from django.http import JsonResponse, HttpResponse
 from django.utils.dateparse import parse_date
 
+# Student About Us Page ==================================================================================================================================
+def about_us(request):
+    team_members = [
+        {
+            "name": "Samuel Lopez",
+            "role": "Lead Developer",
+            "description": "Designs the overall system architecture and ensures the project meets its goals.",
+            "image": "dist/img/lopez.png",
+        },
+        {
+            "name": "Louren jan Rodriguez",
+            "role": "QA/Test Engineer",
+            "description": "Tests the system to ensure it meets the required standards and functions correctly.",
+            "image": "dist/img/Rodriguez.jpg",
+        },
+        {
+            "name": "John Crysler Semilla",
+            "role": "Hardware/Embedded Developer",
+            "description": "Integrates hardware components with the software system, ensuring seamless communication.",
+            "image": "dist/img/Semilla.jpg",
+        },
+        {
+            "name": "Saralyn Marqueses",
+            "role": "System Analyst",
+            "description": "To analyze and design the system requirements, ensu ing they align with user needs.",
+            "image": "dist/img/Marqueses.jpg",
+        },
+        {
+            "name": "Francis Moral",
+            "role": "Backend Developer",
+            "description": "Develops the server-side logic, database interactions, and API integrations.",
+            "image": "dist/img/Moral.jpg",
+        },
+    ]
+    return render(request, "student_template/about_us.html", {"team_members": team_members})
+
 # Student Home View ==================================================================================
 @login_required
 def student_home(request):

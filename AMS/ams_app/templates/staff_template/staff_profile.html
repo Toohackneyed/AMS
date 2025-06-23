@@ -12,32 +12,26 @@
                     </div>
                     <form role="form" action="{% url 'staff_profile_save' %}" method="post" class="p-3">
                         {% csrf_token %}
-                        
                         <div class="form-group mb-3">
                             <label>Username</label>
                             <input type="text" class="form-control" name="username" value="{{ user.username }}" disabled>
                         </div>
-                        
                         <div class="form-group mb-3">
                             <label>Email</label>
                             <input type="email" class="form-control" name="email" value="{{ user.email }}" disabled>
                         </div>
-                        
                         <div class="form-group mb-3">
                             <label>First Name</label>
                             <input type="text" class="form-control editable" name="first_name" value="{{ user.first_name }}" disabled>
                         </div>
-                        
                         <div class="form-group mb-3">
                             <label>Last Name</label>
                             <input type="text" class="form-control editable" name="last_name" value="{{ user.last_name }}" disabled>
                         </div>
-                        
                         <div class="form-group mb-3">
                             <label>Current Password</label>
                             <input type="password" class="form-control" name="current_password" placeholder="Enter current password to confirm" disabled>
                         </div>
-                        
                         <div class="form-group mb-3">
                             <label>New Password</label>
                             <div class="input-group">
@@ -47,11 +41,9 @@
                                 </button>
                             </div>
                         </div>
-                        
                         <div class="form-group mb-3 text-end">
                             <small><a href="{% url 'password_reset' %}" class="text-danger">Forgot password?</a></small>
                         </div>
-                        
                         <div class="card-footer bg-light text-center">
                             <button type="submit" class="btn btn-success w-100" id="saveBtn" disabled>Save Profile</button>
                         </div>
@@ -70,7 +62,6 @@
         document.getElementById("saveBtn").disabled = !document.getElementById("saveBtn").disabled;
     });
 
-    // Toggle password visibility
     document.getElementById("togglePassword").addEventListener("click", function() {
         let passwordField = document.querySelector("input[name='password']");
         if (passwordField.type === "password") {

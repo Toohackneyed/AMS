@@ -13,11 +13,9 @@ Edit Student | Student ID #: {{ student.id_number }} | {{ student.admin.username
           <div class="card-header bg-primary text-white">
             <h3 class="card-title">Edit Student Details</h3>
           </div>
-
           <form role="form" action="{% url 'edit_student_save' %}" method="post" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" name="student_id" value="{{ student.admin.id }}">
-
             <div class="card-body">
               {{ form.as_p }}
               {% if student.profile_pic %}
@@ -26,8 +24,6 @@ Edit Student | Student ID #: {{ student.id_number }} | {{ student.admin.username
                   <img src="{{ student.profile_pic.url }}" class="img-thumbnail" width="150">
                 </div>
               {% endif %}
-
-              <!-- New Password -->
               <div class="form-group">
                 <label for="password">New Password</label>
                 <div class="input-group">
@@ -39,8 +35,6 @@ Edit Student | Student ID #: {{ student.id_number }} | {{ student.admin.username
                   </div>
                 </div>
               </div>
-
-              <!-- Courses -->
               <div class="form-group">
                 <label for="edit-course-select">Select Courses</label>
                 <select id="edit-course-select" name="selected_courses" multiple class="form-control">
@@ -52,17 +46,11 @@ Edit Student | Student ID #: {{ student.id_number }} | {{ student.admin.username
                   {% endfor %}
                 </select>
               </div>
-
-              <!-- Subjects -->
               <div class="form-group">
                 <label for="edit-subject-select">Select Subjects</label>
                 <select id="edit-subject-select" name="subjects" multiple class="form-control">
-                  <!-- Dynamically filled -->
                 </select>
               </div>
-
-              <!-- Alerts -->
-              <!-- Toast Notification Container (Floating) -->
               <div aria-live="polite" aria-atomic="true" class="position-relative">
                 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999">
                   {% if messages %}
@@ -79,15 +67,12 @@ Edit Student | Student ID #: {{ student.id_number }} | {{ student.admin.username
                   {% endif %}
                 </div>
               </div>
-
-
             <div class="card-footer text-center">
               <button type="submit" class="btn btn-primary btn-lg">
                 <i class="fas fa-save"></i> Save Student
               </button>
             </div>
           </form>
-
         </div>
       </div>
     </div>

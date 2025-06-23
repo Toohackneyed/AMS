@@ -13,22 +13,18 @@ Edit Subject | ID: {{ subject.id }}
                     <div class="card-header bg-warning text-white">
                         <h3 class="card-title">Edit Subject</h3>
                     </div>
-
                     <form role="form" action="/edit_subject_save" method="post">
                         {% csrf_token %}
                         <input type="hidden" name="subject_id" value="{{ subject.id }}">
-
                         <div class="card-body">
                             <div class="form-group">
                                 <label>Subject Code</label>
                                 <input type="text" class="form-control" name="subject_code" required value="{{ subject.subject_code }}">
                             </div>
-
                             <div class="form-group">
                                 <label>Subject Name</label>
                                 <input type="text" class="form-control" name="subject_name" required value="{{ subject.subject_name }}">
                             </div>
-
                             <div class="form-group">
                                 <label>Course</label>
                                 <select class="form-control" name="course">
@@ -37,7 +33,6 @@ Edit Subject | ID: {{ subject.id }}
                                     {% endfor %}
                                 </select>
                             </div>
-
                             <div class="form-group">
                                 <label>Staff</label>
                                 <select class="form-control" name="staff">
@@ -48,14 +43,12 @@ Edit Subject | ID: {{ subject.id }}
                                     {% endfor %}
                                 </select>
                             </div>
-
                             <div class="form-group">
                                 <label>Schedules</label>
                                 <div id="schedule-container">
                                     {% for schedule in subject.schedules.all %}
                                     <div class="schedule-entry d-flex gap-2 mb-2">
                                         <input type="hidden" name="schedule_ids[]" value="{{ schedule.id }}">
-
                                         <select class="form-control" name="day_of_week[]">
                                             <option value="Monday" {% if schedule.day_of_week == "Monday" %} selected {% endif %}>Monday</option>
                                             <option value="Tuesday" {% if schedule.day_of_week == "Tuesday" %} selected {% endif %}>Tuesday</option>
@@ -65,7 +58,6 @@ Edit Subject | ID: {{ subject.id }}
                                             <option value="Saturday" {% if schedule.day_of_week == "Saturday" %} selected {% endif %}>Saturday</option>
                                             <option value="Sunday" {% if schedule.day_of_week == "Sunday" %} selected {% endif %}>Sunday</option>
                                         </select>
-
                                         <input type="time" class="form-control" name="start_time[]" required value="{{ schedule.start_time|time:'H:i' }}">
                                         <input type="time" class="form-control" name="end_time[]" required value="{{ schedule.end_time|time:'H:i' }}">
                                         <button type="button" class="btn btn-danger remove-schedule">Remove</button>
@@ -76,7 +68,6 @@ Edit Subject | ID: {{ subject.id }}
                                 </div>
                                 <button type="button" class="btn btn-success mt-2" id="add-schedule">Add Schedule</button>
                             </div>
-
                             {% if messages %}
                             <div class="form-group">
                                 {% for message in messages %}
@@ -85,13 +76,11 @@ Edit Subject | ID: {{ subject.id }}
                             </div>
                             {% endif %}
                         </div>
-
                         <div class="card-footer">
                             <button type="submit" class="btn btn-warning btn-block">Save Changes</button>
                         </div>
                     </form>
                 </div>
-                <!-- /.card -->
             </div>
         </div>
     </div>

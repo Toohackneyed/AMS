@@ -21,8 +21,6 @@ Edit Course | Course ID: {{ course.id }}
                                 <input type="text" class="form-control" name="course" placeholder="Enter Course" value="{{ course.course_name }}" required>
                                 <input type="hidden" name="course_id" value="{{ course.id }}">
                             </div>
-
-                            <!-- Flash Messages -->
                             {% if messages %}
                                 {% for message in messages %}
                                     <div class="alert alert-{{ message.tags }} mt-2">{{ message }}</div>

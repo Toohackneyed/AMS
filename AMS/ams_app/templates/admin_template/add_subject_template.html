@@ -17,17 +17,14 @@ Add Subject
                     <form role="form" action="/add_subject_save" method="post">
                         {% csrf_token %}
                         <div class="card-body">
-                            
                             <div class="form-group">
                                 <label class="font-weight-bold">Subject Code</label>
                                 <input type="text" class="form-control" name="subject_code" placeholder="Enter Subject Code" required>
                             </div>
-
                             <div class="form-group">
                                 <label class="font-weight-bold">Subject Name</label>
                                 <input type="text" class="form-control" name="subject_name" placeholder="Enter Subject Name" required>
                             </div>
-
                             <div class="form-group">
                                 <label class="font-weight-bold">Course</label>
                                 <select class="form-control select2" name="course" required style="width: 100%;">
@@ -37,7 +34,6 @@ Add Subject
                                     {% endfor %}
                                 </select>
                             </div>
-
                             <div class="form-group">
                                 <label class="font-weight-bold">Staff</label>
                                 <select class="form-control select2" name="staff" required>
@@ -47,8 +43,6 @@ Add Subject
                                     {% endfor %}
                                 </select>
                             </div>
-
-                            <!-- Schedules Section -->
                             <div class="form-group">
                                 <label class="font-weight-bold">Schedules</label>
                                 <div id="schedule-container">
@@ -69,15 +63,12 @@ Add Subject
                                 </div>
                                 <button type="button" class="btn btn-success mt-2" id="add-schedule">+ Schedule</button>
                             </div>
-
-                            <!-- Flash Messages -->
                             {% if messages %}
                                 {% for message in messages %}
                                 <div class="alert alert-{{ message.tags }} mt-2">{{ message }}</div>
                                 {% endfor %}
                             {% endif %}
                         </div>
-
                         <div class="card-footer">
                             <button type="submit" class="btn btn-primary btn-block">Add Subject</button>
                         </div>
@@ -88,7 +79,7 @@ Add Subject
     </div>
 </section>
 {% block custom_js %}
-<!-- JavaScript for Dynamic Schedule Management -->
+
 <script>
     document.getElementById('add-schedule').addEventListener('click', function() {
         let scheduleContainer = document.getElementById('schedule-container');
@@ -117,7 +108,6 @@ Add Subject
         }
     });
     $(document).ready(function() {
-    // Check if Select2 is defined
     if ($.fn.select2 === undefined) {
         console.error("Select2 not loaded!");
     } else {
